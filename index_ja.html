@@ -175,7 +175,7 @@
             ☁️ 載入雲端音檔 (Google Drive)
           </button>
         </div>
-        <input type="file" id="audioFile" accept="audio/*" style="display: none;">
+        <input type="file" id="audioFile" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,audio/mpeg,audio/mp3,audio/x-m4a" style="display: none;">
         <div id="audioInfo" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 16px;">尚未選取音檔</div>
 
         <div class="status-box-ja">
@@ -212,7 +212,7 @@
         <div style="display: flex; gap: 12px; margin-top: 20px;">
           <button id="btnExport" class="btn-secondary" style="flex: 1; justify-content: center;">💾 匯出字卡 (JSON)</button>
           <label class="btn-secondary" for="jsonFile" style="flex: 1; justify-content: center; cursor: pointer;">📥 匯入字卡</label>
-          <input type="file" id="jsonFile" accept=".json" style="display: none;">
+          <input type="file" id="jsonFile" accept=".json,application/json,text/plain" style="display: none;">
         </div>
       </section>
 
