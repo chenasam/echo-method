@@ -707,6 +707,16 @@
       statusText.innerText = "⏳ 正在連接雲端串流音檔...";
       statusSub.innerText = "如為 Google Drive 連結，請確認已開啟「知道連結的任何人」共用權限";
 
+      player.onloadedmetadata = () => {
+        if (player.duration && (!segments || segments.length === 0)) {
+          createDefaultSegments(player.duration);
+          btnStart.disabled = false;
+          btnStart.removeAttribute('disabled');
+          statusText.innerText = "✅ 雲端音檔已連線，點擊「開始 4 步驟迴音訓練」！";
+          renderList();
+        }
+      };
+
       try {
         const response = await fetch(url);
         if (!response.ok) throw new Error("HTTP Status " + response.status);
@@ -717,12 +727,18 @@
         detectSilence(audioBuffer);
         statusText.innerText = "✅ 雲端音檔下載與斷句完成！";
         btnStart.disabled = false;
+        btnStart.removeAttribute('disabled');
         renderList();
       } catch (err) {
         console.warn("CORS 限制無法讀取二進位波形，已轉為標準串流播放模式", err);
-        statusText.innerText = "✅ 雲端音檔已連線，點擊開始特訓！";
+        if (!segments || segments.length === 0) {
+          createDefaultSegments(player.duration || 12);
+        }
+        statusText.innerText = "✅ 雲端音檔已連線，點擊「開始 4 步驟迴音訓練」！";
         statusSub.innerText = "提示：若播放無聲音，請確定 Drive 共用權限設為「知道連結的人皆可檢視」";
         btnStart.disabled = false;
+        btnStart.removeAttribute('disabled');
+        renderList();
       }
     };
 
