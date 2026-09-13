@@ -172,10 +172,18 @@
             📁 選擇本機『來學日本語』MP3
           </label>
           <button class="btn-secondary" id="btnCloudUrl" style="flex: 1 1 200px; justify-content: center; border-color: var(--accent-cyan); color: var(--accent-cyan); min-height: 48px;">
-            ☁️ 載入雲端音檔 (Google Drive)
+            ☁️ 彈出雲端網址視窗
           </button>
         </div>
-        <input type="file" id="audioFile" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,audio/mpeg,audio/mp3,audio/x-m4a" style="display: none;">
+        <!-- iOS Files App Compatible File Input (無 accept 限制，iOS 檔案不反灰) -->
+        <input type="file" id="audioFile" style="display: none;">
+        
+        <!-- iPhone 1-Tap Quick Cloud Link Input Bar (免彈窗直接貼上) -->
+        <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+          <input type="url" id="quickCloudUrl" class="form-input" placeholder="🔗 或在此直接貼上 Google Drive / 雲端網址" style="flex: 1; font-size: 0.82rem; padding: 10px 12px; margin: 0; min-height: 44px;">
+          <button id="btnQuickCloud" class="btn-secondary" style="white-space: nowrap; border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 600; min-height: 44px; padding: 0 16px;">☁️ 讀取網址</button>
+        </div>
+
         <div id="audioInfo" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 16px;">尚未選取音檔</div>
 
         <div class="status-box-ja">
@@ -292,8 +300,16 @@
     document.getElementById('audioFile').onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
+
+      const validExts = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.mp4', '.m4b'];
+      const isAudio = file.type.startsWith('audio/') || validExts.some(ext => file.name.toLowerCase().endsWith(ext));
+      if (!isAudio) {
+        alert('請選擇有效的 MP3 / M4A / WAV 音檔！');
+        return;
+      }
+
       rawAudioFile = file;
-      document.getElementById('audioInfo').innerText = "已載入音檔：" + file.name;
+      document.getElementById('audioInfo').innerText = "已載入本機音檔：" + file.name;
       player.src = URL.createObjectURL(file);
       statusText.innerText = "⏳ 正在掃描音波脈衝斷句中...";
       
@@ -538,19 +554,12 @@
         alert("🎉 日文字卡 JSON 匯入成功！");
       };
     // 6. 雲端音檔網址讀取 (Google Drive / Dropbox / 直連網址)
-    document.getElementById('btnCloudUrl').onclick = () => {
-      document.getElementById('cloudModal').classList.add('open');
-    };
-    document.getElementById('btnCancelCloud').onclick = () => {
-      document.getElementById('cloudModal').classList.remove('open');
-    };
-
-    document.getElementById('btnFetchCloud').onclick = async () => {
-      let url = document.getElementById('cloudUrlInput').value.trim();
+    const loadCloudUrl = async (rawUrl) => {
+      let url = rawUrl.trim();
       if (!url) return;
 
-      // Google Drive 連結解析
-      const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+      // Google Drive / Dropbox 連結解析
+      const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
       if (gdriveMatch) {
         const fileId = gdriveMatch[1];
         url = `https://docs.google.com/uc?export=download&id=${fileId}`;
@@ -558,10 +567,9 @@
         url = url.replace('dl=0', 'raw=1');
       }
 
-      document.getElementById('cloudModal').classList.remove('open');
       document.getElementById('audioInfo').innerText = "☁️ 已載入雲端音檔：" + url;
       player.src = url;
-      statusText.innerText = "⏳ 正在從雲端下載音波資料並斷句中...";
+      statusText.innerText = "⏳ 正在從雲端載入音波資料並斷句中...";
 
       try {
         const response = await fetch(url);
@@ -577,6 +585,28 @@
         statusText.innerText = "✅ 雲端音檔連結載入成功，點擊開始特訓！";
         btnStart.disabled = false;
       }
+    };
+
+    document.getElementById('btnQuickCloud').onclick = () => {
+      const url = document.getElementById('quickCloudUrl').value;
+      if (!url) {
+        alert('請先貼上 Google Drive 或音檔網址！');
+        return;
+      }
+      loadCloudUrl(url);
+    };
+
+    document.getElementById('btnCloudUrl').onclick = () => {
+      document.getElementById('cloudModal').classList.add('open');
+    };
+    document.getElementById('btnCancelCloud').onclick = () => {
+      document.getElementById('cloudModal').classList.remove('open');
+    };
+
+    document.getElementById('btnFetchCloud').onclick = () => {
+      let url = document.getElementById('cloudUrlInput').value.trim();
+      document.getElementById('cloudModal').classList.remove('open');
+      loadCloudUrl(url);
     };
   </script>
 </body>
