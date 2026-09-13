@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>回音法 (Echo Method) - 史嘉琳教授口音特訓神器 | 4步驟高效率語言學習 Web App</title>
+  <meta name="description" content="基於史嘉琳教授「回音法 (Echo Method)」理論開發的互動式語言學習 Web 應用程式。透過仔細聽、心裡留白迴音、大聲模仿與錄音雙軌比對，大幅提升英文口音、連音與自然語調。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- SVG Icons Definitions -->
+  <svg style="display: none;">
+    <symbol id="icon-wave" viewBox="0 0 24 24">
+      <path d="M2 12h2a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v10a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0v10a2 2 0 0 0 2 2h2"/>
+    </symbol>
+    <symbol id="icon-play" viewBox="0 0 24 24">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </symbol>
+    <symbol id="icon-mic" viewBox="0 0 24 24">
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="22"/>
+    </symbol>
+    <symbol id="icon-eye" viewBox="0 0 24 24">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </symbol>
+    <symbol id="icon-eye-off" viewBox="0 0 24 24">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </symbol>
+    <symbol id="icon-history" viewBox="0 0 24 24">
+      <polyline points="12 8 12 12 14 14"/>
+      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
+    </symbol>
+  </svg>
+
+  <div class="app-container">
+    
+    <!-- Navbar Header -->
+    <header class="app-header">
+      <div class="logo-group">
+        <div class="logo-icon">
+          <svg class="icon" style="width: 24px; height: 24px; color: white;"><use href="#icon-wave"/></svg>
+        </div>
+        <div>
+          <h1 class="logo-title">Echo Method 回音法</h1>
+          <p style="font-size: 0.78rem; color: var(--text-muted);">史嘉琳教授 4 步驟口音特訓神器</p>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <!-- Language Switcher Buttons -->
+        <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: var(--radius-full); border: 1px solid var(--bg-card-border);">
+          <a href="index.html" class="btn-secondary active" style="background: var(--accent-purple); color: white; border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇬🇧 English 英文版</a>
+          <a href="index_ja.html" class="btn-secondary" style="border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇯🇵 日本語 日文版</a>
+        </div>
+
+        <div class="stat-badge">
+          <span class="stat-label">🔥 連續練習</span>
+          <span class="stat-value" id="stat-streak">0 天</span>
+        </div>
+        <div class="stat-badge">
+          <span class="stat-label">🎯 已解鎖句子</span>
+          <span class="stat-value" id="stat-count">0 句</span>
+        </div>
+        <button class="btn-secondary" id="btn-history">
+          <svg class="icon"><use href="#icon-history"/></svg>
+          練習紀錄
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Echo Method Trainer Core Card -->
+      <section class="trainer-card" id="trainer-hub">
+        
+        <!-- 4-Step Workflow Badges Bar -->
+        <div class="workflow-steps-bar">
+          <div class="step-badge" id="step-1">
+            <div class="step-num">1</div>
+            <div class="step-info">
+              <div class="step-title">Listen 仔細聽</div>
+              <div class="step-desc">母語原音朗讀</div>
+            </div>
+          </div>
+
+          <div class="step-badge" id="step-2">
+            <div class="step-num">2</div>
+            <div class="step-info">
+              <div class="step-title">Echo 心裡迴音</div>
+              <div class="step-desc">留白腦海重播</div>
+            </div>
+          </div>
+
+          <div class="step-badge" id="step-3">
+            <div class="step-num">3</div>
+            <div class="step-info">
+              <div class="step-title">Speak 模仿錄音</div>
+              <div class="step-desc">開啟麥克風大聲唸</div>
+            </div>
+          </div>
+
+          <div class="step-badge" id="step-4">
+            <div class="step-num">4</div>
+            <div class="step-info">
+              <div class="step-title">Compare 雙軌比對</div>
+              <div class="step-desc">對比語調與自評</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Waveform Visualizer & Mental Echo Ring -->
+        <div class="visualizer-container">
+          <canvas id="waveform-canvas" width="800" height="120"></canvas>
+          <div class="echo-overlay">
+            <div class="echo-countdown" id="echo-countdown"></div>
+            <div class="echo-status-text" id="echo-status-text">準備就緒，點擊「開始一鍵迴音特訓」</div>
+          </div>
+        </div>
+
+        <!-- Sentence Display Card -->
+        <div class="sentence-box">
+          <div class="lesson-title-tag" id="lesson-title">What do you do? (連音特訓)</div>
+          
+          <div class="sentence-wrapper">
+            <div class="sentence-text" id="lesson-sentence">What do you do for a living?</div>
+            <div class="subtitle-mask" id="subtitle-mask">
+              <span>🙈 聽力遮罩防雷中（點擊下方按鈕或選單開啟字幕）</span>
+            </div>
+          </div>
+
+          <div class="sentence-ipa" id="lesson-ipa">/wʌt də juː duː fər ə ˈlɪvɪŋ/</div>
+          <div class="sentence-trans" id="lesson-translation">你是做什麼工作的？</div>
+          
+          <div class="sentence-tips" id="lesson-tips">
+            <strong>💡 迴音心法：</strong>What do you 經常弱讀並連音發成 /wʌdəjə/。
+          </div>
+
+          <div class="highlights-tags" id="lesson-highlights">
+            <!-- Highlights generated dynamically -->
+          </div>
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="controls-bar">
+          <div class="main-action-group">
+            <button class="btn-primary-glow" id="btn-start-workflow">
+              <svg class="icon" style="width: 22px; height: 22px;"><use href="#icon-play"/></svg>
+              開始 4 步驟迴音特訓
+            </button>
+
+            <button class="btn-secondary" id="btn-play-original">
+              <svg class="icon"><use href="#icon-play"/></svg>
+              單獨播放原音
+            </button>
+
+            <button class="btn-secondary" id="btn-toggle-record">
+              <svg class="icon"><use href="#icon-mic"/></svg>
+              <span>錄製模仿音</span>
+            </button>
+
+            <button class="btn-secondary" id="btn-play-recording" disabled>
+              <svg class="icon"><use href="#icon-play"/></svg>
+              播放我的錄音
+            </button>
+          </div>
+
+          <div class="options-group">
+            <button class="btn-secondary" id="btn-toggle-subtitles">
+              <svg class="icon"><use href="#icon-eye"/></svg>
+              顯示字幕 (揭露)
+            </button>
+
+            <select class="select-custom" id="speed-selector">
+              <option value="0.75">0.75x (慢速拆解)</option>
+              <option value="1.0" selected>1.0x (標準美音)</option>
+              <option value="1.25">1.25x (快速挑戰)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Rating Panel (Step 4) -->
+        <div class="rating-panel">
+          <div class="rating-title">🎯 評估剛才的迴音模仿比對：</div>
+          <div class="rating-buttons">
+            <button class="btn-rating" data-rating="1">1星 需要再聽</button>
+            <button class="btn-rating" data-rating="3">3星 語調相近</button>
+            <button class="btn-rating" data-rating="5">5星 完全契合！</button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Lesson Library Section -->
+      <section>
+        <div class="section-header">
+          <h2 class="section-title">📚 回音法精選教材庫</h2>
+          <button class="btn-secondary" id="btn-custom-lesson">
+            <svg class="icon"><use href="#icon-plus"/></svg>
+            自訂句子 / 匯入文字
+          </button>
+        </div>
+
+        <!-- Category Filters -->
+        <div class="category-filters" id="category-filters">
+          <button class="cat-chip active" data-cat="all">全部教材</button>
+          <button class="cat-chip" data-cat="linking">連音與變音特訓 (Linking)</button>
+          <button class="cat-chip" data-cat="intonation">自然語調起伏 (Intonation)</button>
+          <button class="cat-chip" data-cat="daily">生活高頻會話 (Daily)</button>
+          <button class="cat-chip" data-cat="business">商務溝通 (Business)</button>
+        </div>
+
+        <!-- Lessons Cards Grid -->
+        <div class="lessons-grid" id="lessons-grid">
+          <!-- Dynamically populated -->
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Custom Lesson Modal -->
+  <div class="modal-overlay" id="modal-custom">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">自訂迴音練習句子</h3>
+        <button class="btn-icon-close" id="btn-close-modal">&times;</button>
+      </div>
+      <form id="form-custom-lesson">
+        <div class="form-group">
+          <label>句子標題 / 主題</label>
+          <input type="text" class="form-input" id="custom-title" placeholder="例如：電影對白、簡報開場白..." required>
+        </div>
+        <div class="form-group">
+          <label>英文句子內容</label>
+          <textarea class="form-textarea" id="custom-text" rows="3" placeholder="輸入你想用迴音法練習的英文句子..." required></textarea>
+        </div>
+        <div class="form-group">
+          <label>中文翻譯 (選填)</label>
+          <input type="text" class="form-input" id="custom-translation" placeholder="補充中文意思...">
+        </div>
+        <button type="submit" class="btn-primary-glow" style="width: 100%; justify-content: center;">新增並立刻開始練習</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- History Log Modal -->
+  <div class="modal-overlay" id="modal-history">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">📊 我的迴音練習歷程</h3>
+        <button class="btn-icon-close" id="btn-close-history">&times;</button>
+      </div>
+      <div id="history-list">
+        <!-- Dynamically populated -->
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
