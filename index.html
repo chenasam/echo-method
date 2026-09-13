@@ -124,6 +124,40 @@
           </div>
         </div>
 
+        <!-- Audio Segment Trimmer Panel (音檔分句微調面板) -->
+        <div class="segment-panel" id="segment-panel" style="display: none; background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-weight: 600; font-size: 0.92rem; color: var(--accent-cyan);">✂️ 音檔分句剪輯微調 (Audio Segment Slicer)</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted);" id="segment-info-text">點擊下方分句或手動設定時間</span>
+          </div>
+
+          <!-- Quick Segments List Chips -->
+          <div class="segments-list" id="segments-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <!-- Dynamically populated chips -->
+          </div>
+
+          <!-- Manual Time Adjuster -->
+          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">開始時間:</span>
+              <button class="btn-secondary" id="btn-seg-start-minus" style="padding: 4px 8px; font-size: 0.78rem;">-0.5s</button>
+              <input type="number" step="0.1" id="seg-start-time" value="0.0" style="width: 70px; background: rgba(0,0,0,0.3); border: 1px solid var(--bg-card-border); color: white; border-radius: 4px; padding: 4px 8px; text-align: center;">
+              <button class="btn-secondary" id="btn-seg-start-plus" style="padding: 4px 8px; font-size: 0.78rem;">+0.5s</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 0.85rem; color: var(--text-secondary);">結束時間:</span>
+              <button class="btn-secondary" id="btn-seg-end-minus" style="padding: 4px 8px; font-size: 0.78rem;">-0.5s</button>
+              <input type="number" step="0.1" id="seg-end-time" value="4.0" style="width: 70px; background: rgba(0,0,0,0.3); border: 1px solid var(--bg-card-border); color: white; border-radius: 4px; padding: 4px 8px; text-align: center;">
+              <button class="btn-secondary" id="btn-seg-end-plus" style="padding: 4px 8px; font-size: 0.78rem;">+0.5s</button>
+            </div>
+
+            <button class="btn-secondary" id="btn-preview-segment" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">
+              ▶️ 試聽選取區段
+            </button>
+          </div>
+        </div>
+
         <!-- Sentence Display Card -->
         <div class="sentence-box">
           <div class="lesson-title-tag" id="lesson-title">What do you do? (連音特訓)</div>

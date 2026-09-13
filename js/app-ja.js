@@ -91,14 +91,37 @@ class EchoAppJA {
       audioFileInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          this.audioEngine.loadCustomAudioFile(file);
+          const audio = this.audioEngine.loadCustomAudioFile(file);
           this.hasCustomAudio = true;
           this.customAudioName = file.name;
-          alert(`🎵 已成功載入日文音檔：${file.name}\n開始迴音特訓時將直接播放您的日文音檔！`);
+          
+          audio.onloadedmetadata = () => {
+            this.setupSegmentPanel();
+          };
+          setTimeout(() => this.setupSegmentPanel(), 800);
+
+          alert(`🎵 已成功載入日文音檔：${file.name}\n已在上方為您自動切分分句，您也可自行微調播放區段！`);
           this.elEchoStatusText.textContent = `已載入自訂日文音檔：${file.name}`;
         }
       });
     }
+
+    this.segStartInput = document.getElementById('seg-start-time');
+    this.segEndInput = document.getElementById('seg-end-time');
+
+    document.getElementById('btn-seg-start-minus')?.addEventListener('click', () => this.adjustTime('start', -0.5));
+    document.getElementById('btn-seg-start-plus')?.addEventListener('click', () => this.adjustTime('start', 0.5));
+    document.getElementById('btn-seg-end-minus')?.addEventListener('click', () => this.adjustTime('end', -0.5));
+    document.getElementById('btn-seg-end-plus')?.addEventListener('click', () => this.adjustTime('end', 0.5));
+    
+    document.getElementById('btn-preview-segment')?.addEventListener('click', () => {
+      const start = parseFloat(this.segStartInput.value) || 0;
+      const end = parseFloat(this.segEndInput.value) || null;
+      this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
+      this.audioEngine.playAudioSegment(start, end, this.playbackRate).then(() => {
+        this.audioEngine.startWaveformVisualizer(this.elCanvas, 'idle');
+      });
+    });
 
     this.categoryFilters.addEventListener('click', (e) => {
       const btn = e.target.closest('.cat-chip');
@@ -221,7 +244,12 @@ class EchoAppJA {
 
     let durationMs = 3000;
     if (this.hasCustomAudio) {
-      await this.audioEngine.playCustomAudio(this.playbackRate);
+      const segStart = parseFloat(this.segStartInput?.value) || 0;
+      const segEnd = parseFloat(this.segEndInput?.value) || null;
+      if (segEnd && segEnd > segStart) {
+        durationMs = ((segEnd - segStart) / this.playbackRate) * 1000;
+      }
+      await this.audioEngine.playAudioSegment(segStart, segEnd, this.playbackRate);
     } else {
       durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
     }
@@ -352,29 +380,43 @@ class EchoAppJA {
     this.loadLesson(newLesson);
   }
 
-  renderHistoryModal() {
-    const history = StorageManager.getHistoryLogs();
-    this.historyList.innerHTML = '';
+  setupSegmentPanel() {
+    const panel = document.getElementById('segment-panel');
+    const container = document.getElementById('segments-list');
+    if (!panel || !container) return;
 
-    if (history.length === 0) {
-      this.historyList.innerHTML = '<p class="empty-msg">尚無練習紀錄，現在就開始進行第一次日文迴音練習吧！</p>';
-      return;
-    }
+    panel.style.display = 'block';
+    container.innerHTML = '';
 
-    history.forEach(item => {
-      const lesson = this.lessonsList.find(l => l.id === item.lessonId) || { title: '日文迴音練習句', text: '' };
-      const stars = '⭐'.repeat(item.rating);
-      const div = document.createElement('div');
-      div.className = 'history-item';
-      div.innerHTML = `
-        <div class="hist-info">
-          <strong>${lesson.title}</strong>
-          <span class="hist-time">${item.dateStr}</span>
-        </div>
-        <div class="hist-rating">${stars}</div>
-      `;
-      this.historyList.appendChild(div);
+    const segments = this.audioEngine.generateAudioSegments(4.0);
+    if (segments.length === 0) return;
+
+    segments.forEach((seg, idx) => {
+      const chip = document.createElement('button');
+      chip.className = `cat-chip ${idx === 0 ? 'active' : ''}`;
+      chip.textContent = seg.label;
+      chip.addEventListener('click', () => {
+        container.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        this.segStartInput.value = seg.start;
+        this.segEndInput.value = seg.end;
+        this.elEchoStatusText.textContent = `切換至 ${seg.label}`;
+      });
+      container.appendChild(chip);
     });
+
+    this.segStartInput.value = segments[0].start;
+    this.segEndInput.value = segments[0].end;
+  }
+
+  adjustTime(type, delta) {
+    if (type === 'start') {
+      let val = Math.max(0, (parseFloat(this.segStartInput.value) || 0) + delta);
+      this.segStartInput.value = val.toFixed(1);
+    } else {
+      let val = Math.max(0, (parseFloat(this.segEndInput.value) || 0) + delta);
+      this.segEndInput.value = val.toFixed(1);
+    }
   }
 }
 

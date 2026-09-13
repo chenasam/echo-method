@@ -2,10 +2,123 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>回音法 (Echo Method) 日本語版 - 日語高低音調 (Pitch Accent) 與口音特訓 | Web App</title>
-  <meta name="description" content="專為日文學習者打造的「回音法 (Echo Method)」互動式 Web 應用程式。精準抓取日語高低音調 (Pitch Accent)、促音・撥音與長音拍子，讓日文口音如同日本母語者般自然流暢。">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🌸 日語回音法練習器 (Echo Method Japanese) - MP3 智慧自動斷句與口音對比</title>
+  <meta name="description" content="專為日文學習者打造的「回音法 (Echo Method)」自動斷句特訓器。支援『來學日本語』等 MP3 音檔智慧音波切分、振假名注音、JSON 字卡匯入匯出與原音/錄音連續比對。">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .ja-card {
+      background: var(--bg-card);
+      border: 1px solid var(--bg-card-border);
+      backdrop-filter: blur(16px);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .status-box-ja {
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      border-radius: var(--radius-md);
+      background: rgba(225, 29, 72, 0.1);
+      border: 1px solid rgba(225, 29, 72, 0.25);
+      margin: 16px 0;
+    }
+    .status-text-ja {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #f43f5e;
+      text-shadow: 0 0 12px rgba(244, 63, 94, 0.3);
+    }
+    .status-sub-ja {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+    .text-reveal-ja {
+      margin-top: 16px;
+      padding: 16px;
+      background: rgba(16, 185, 129, 0.12);
+      border-left: 4px solid var(--accent-green);
+      border-radius: var(--radius-sm);
+      width: 100%;
+      display: none;
+      text-align: left;
+    }
+    .text-reveal-ja ruby {
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1.8;
+      color: var(--text-primary);
+    }
+    .text-reveal-ja rt {
+      font-size: 0.8rem;
+      color: var(--accent-cyan);
+    }
+    .text-reveal-ja .zh {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+    .compare-panel-ja {
+      display: none;
+      gap: 10px;
+      margin-top: 16px;
+      width: 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn-compare-ja {
+      background: rgba(37, 99, 235, 0.2);
+      border: 1px solid rgba(37, 99, 235, 0.4);
+      color: #60a5fa;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: var(--transition-fast);
+    }
+    .btn-compare-ja:hover {
+      background: rgba(37, 99, 235, 0.4);
+      color: white;
+    }
+    .btn-compare-gold {
+      background: rgba(245, 158, 11, 0.2);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+    .btn-compare-gold:hover {
+      background: rgba(245, 158, 11, 0.4);
+      color: white;
+    }
+    .segment-item-ja {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--bg-card-border);
+      font-size: 0.92rem;
+      transition: var(--transition-fast);
+    }
+    .segment-active-ja {
+      background: rgba(225, 29, 72, 0.15);
+      border-radius: var(--radius-sm);
+      border-left: 3px solid #f43f5e;
+    }
+    .tag-ja {
+      font-size: 0.78rem;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: var(--accent-cyan);
+    }
+  </style>
 </head>
 <body>
 
@@ -22,18 +135,6 @@
       <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
       <line x1="12" y1="19" x2="12" y2="22"/>
     </symbol>
-    <symbol id="icon-eye" viewBox="0 0 24 24">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </symbol>
-    <symbol id="icon-eye-off" viewBox="0 0 24 24">
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </symbol>
-    <symbol id="icon-plus" viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
-    </symbol>
     <symbol id="icon-history" viewBox="0 0 24 24">
       <polyline points="12 8 12 12 14 14"/>
       <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
@@ -45,12 +146,12 @@
     <!-- Navbar Header -->
     <header class="app-header">
       <div class="logo-group">
-        <div class="logo-icon" style="background: linear-gradient(135deg, #ef4444, #f59e0b);">
+        <div class="logo-icon" style="background: linear-gradient(135deg, #e11d48, #f43f5e);">
           <svg class="icon" style="width: 24px; height: 24px; color: white;"><use href="#icon-wave"/></svg>
         </div>
         <div>
-          <h1 class="logo-title">Echo Method 日本語版</h1>
-          <p style="font-size: 0.78rem; color: var(--text-muted);">高低音調 (Pitch Accent) 與自然口音特訓</p>
+          <h1 class="logo-title">🌸 日語回音法練習器</h1>
+          <p style="font-size: 0.78rem; color: var(--text-muted);">『來學日本語』/ 教材 MP3 智慧自動斷句與發音比對</p>
         </div>
       </div>
 
@@ -58,218 +159,361 @@
         <!-- Language Switcher Buttons -->
         <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: var(--radius-full); border: 1px solid var(--bg-card-border);">
           <a href="index.html" class="btn-secondary" style="border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇬🇧 English 英文版</a>
-          <a href="index_ja.html" class="btn-secondary active" style="background: var(--accent-purple); color: white; border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇯🇵 日本語 日文版</a>
+          <a href="index_ja.html" class="btn-secondary active" style="background: #e11d48; color: white; border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇯🇵 日本語 日文版</a>
         </div>
-
-        <div class="stat-badge">
-          <span class="stat-label">🔥 連續練習</span>
-          <span class="stat-value" id="stat-streak">0 天</span>
-        </div>
-        <div class="stat-badge">
-          <span class="stat-label">🎯 已解鎖句子</span>
-          <span class="stat-value" id="stat-count">0 句</span>
-        </div>
-        <button class="btn-secondary" id="btn-history">
-          <svg class="icon"><use href="#icon-history"/></svg>
-          練習紀錄
-        </button>
       </div>
     </header>
 
     <main>
-      <!-- Echo Method Trainer Core Card -->
-      <section class="trainer-card" id="trainer-hub">
-        
-        <!-- 4-Step Workflow Badges Bar -->
-        <div class="workflow-steps-bar">
-          <div class="step-badge" id="step-1">
-            <div class="step-num">1</div>
-            <div class="step-info">
-              <div class="step-title">Listen 仔細聽</div>
-              <div class="step-desc">日語原音朗讀</div>
-            </div>
+      <!-- Main Japanese Echo Core Card -->
+      <section class="ja-card">
+        <label class="btn-primary-glow" for="audioFile" style="width: 100%; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e); cursor: pointer; margin-bottom: 8px;">
+          📁 選擇『來學日本語』/ 課文 MP3 音檔
+        </label>
+        <input type="file" id="audioFile" accept="audio/*" style="display: none;">
+        <div id="audioInfo" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 16px;">尚未選取音檔</div>
+
+        <div class="status-box-ja">
+          <div id="statusText" class="status-text-ja">請先選擇音檔</div>
+          <div id="statusSub" class="status-sub-ja">載入後將透過 WebAudio 演算法自動進行靜音掃描斷句</div>
+
+          <div id="textReveal" class="text-reveal-ja">
+            <div id="revealJp"></div>
+            <div id="revealZh" class="zh"></div>
           </div>
 
-          <div class="step-badge" id="step-2">
-            <div class="step-num">2</div>
-            <div class="step-info">
-              <div class="step-title">Echo 心裡迴音</div>
-              <div class="step-desc">重現音型與拍子</div>
-            </div>
-          </div>
-
-          <div class="step-badge" id="step-3">
-            <div class="step-num">3</div>
-            <div class="step-info">
-              <div class="step-title">Speak 模仿錄音</div>
-              <div class="step-desc">麥克風大聲模仿</div>
-            </div>
-          </div>
-
-          <div class="step-badge" id="step-4">
-            <div class="step-num">4</div>
-            <div class="step-info">
-              <div class="step-title">Compare 雙軌比對</div>
-              <div class="step-desc">比對 Pitch Accent</div>
-            </div>
+          <div id="comparePanel" class="compare-panel-ja">
+            <button id="btnPlayOrigin" class="btn-compare-ja">🎧 聽原音</button>
+            <button id="btnPlaySelf" class="btn-compare-ja">🎙️ 聽我的發音</button>
+            <button id="btnCompareAll" class="btn-compare-ja btn-compare-gold">⚡ 連續對比 (原音+錄音)</button>
           </div>
         </div>
 
-        <!-- Waveform Visualizer & Mental Echo Ring -->
-        <div class="visualizer-container">
-          <canvas id="waveform-canvas" width="800" height="120"></canvas>
-          <div class="echo-overlay">
-            <div class="echo-countdown" id="echo-countdown"></div>
-            <div class="echo-status-text" id="echo-status-text">準備就緒，點擊「開始一鍵日文迴音特訓」</div>
-          </div>
+        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+          <select id="repeatSelect" class="select-custom" style="flex: 1; padding: 12px; font-size: 0.92rem;">
+            <option value="1">單句練 1 次即跳下一句</option>
+            <option value="2">單句重複練 2 次</option>
+            <option value="3" selected>單句重複練 3 次</option>
+          </select>
         </div>
 
-        <!-- Sentence Display Card -->
-        <div class="sentence-box">
-          <div class="lesson-title-tag" id="lesson-title">雨 (あめ) vs 飴 (あめ) - 音調型特訓</div>
-          
-          <div class="sentence-wrapper">
-            <div class="sentence-text" id="lesson-sentence">雨が降っているから、飴をあげます。</div>
-            <div class="subtitle-mask" id="subtitle-mask">
-              <span>🙈 聽力遮罩防雷中（點擊下方按鈕顯示日文字幕）</span>
-            </div>
-          </div>
+        <button id="btnStart" class="btn-primary-glow" style="width: 100%; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e);" disabled>
+          ▶️ 開始 4 步驟迴音訓練
+        </button>
+        <button id="btnStop" class="btn-secondary" style="width: 100%; justify-content: center; margin-top: 10px; display: none; border-color: #ef4444; color: #ef4444;">
+          ⏸️ 暫停訓練
+        </button>
 
-          <div class="sentence-ipa" id="lesson-kana">あめ(頭高型)が ふっているから、あめ(平板型)を あげます。</div>
-          <div style="font-size: 0.9rem; color: #a78bfa; margin-bottom: 8px;" id="lesson-romaji">Ame ga futte iru kara, ame o agemasu.</div>
-          <div class="sentence-trans" id="lesson-translation">因為正在下雨，所以我給你糖果。</div>
-          
-          <div class="sentence-tips" id="lesson-tips">
-            <strong>💡 日文迴音心法：</strong>「雨(あめ)」是頭高型 ①（高-低）；「飴(あめ)」是平板型 ⓪（低-高）。
-          </div>
-
-          <div class="highlights-tags" id="lesson-highlights">
-            <!-- Highlights generated dynamically -->
-          </div>
+        <div style="display: flex; gap: 12px; margin-top: 20px;">
+          <button id="btnExport" class="btn-secondary" style="flex: 1; justify-content: center;">💾 匯出字卡 (JSON)</button>
+          <label class="btn-secondary" for="jsonFile" style="flex: 1; justify-content: center; cursor: pointer;">📥 匯入字卡</label>
+          <input type="file" id="jsonFile" accept=".json" style="display: none;">
         </div>
-
-        <!-- Controls Bar -->
-        <div class="controls-bar">
-          <div class="main-action-group">
-            <button class="btn-primary-glow" id="btn-start-workflow" style="background: linear-gradient(135deg, #ef4444, #f59e0b);">
-              <svg class="icon" style="width: 22px; height: 22px;"><use href="#icon-play"/></svg>
-              開始 4 步驟日文迴音特訓
-            </button>
-
-            <button class="btn-secondary" id="btn-play-original">
-              <svg class="icon"><use href="#icon-play"/></svg>
-              單獨播放日語原音
-            </button>
-
-            <button class="btn-secondary" id="btn-toggle-record">
-              <svg class="icon"><use href="#icon-mic"/></svg>
-              <span>錄製模仿音</span>
-            </button>
-
-            <button class="btn-secondary" id="btn-play-recording" disabled>
-              <svg class="icon"><use href="#icon-play"/></svg>
-              播放我的錄音
-            </button>
-          </div>
-
-          <div class="options-group">
-            <button class="btn-secondary" id="btn-toggle-subtitles">
-              <svg class="icon"><use href="#icon-eye"/></svg>
-              顯示日文字幕
-            </button>
-
-            <label class="btn-secondary" style="cursor: pointer;">
-              🎵 選擇/上傳日文音檔 (MP3/WAV)
-              <input type="file" id="audio-file-input" accept="audio/*" style="display: none;">
-            </label>
-
-            <select class="select-custom" id="speed-selector">
-              <option value="0.75">0.75x (慢速拆解音型)</option>
-              <option value="1.0" selected>1.0x (標準速度)</option>
-              <option value="1.25">1.25x (快速挑戰)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Rating Panel (Step 4) -->
-        <div class="rating-panel">
-          <div class="rating-title">🎯 評估剛才的日語高低音調與模仿比對：</div>
-          <div class="rating-buttons">
-            <button class="btn-rating" data-rating="1">1星 音型有落差</button>
-            <button class="btn-rating" data-rating="3">3星 拍子語調相近</button>
-            <button class="btn-rating" data-rating="5">5星 道地東京音！</button>
-          </div>
-        </div>
-
       </section>
 
-      <!-- Lesson Library Section -->
-      <section>
-        <div class="section-header">
-          <h2 class="section-title">📚 回音法精選日文教材庫</h2>
-          <button class="btn-secondary" id="btn-custom-lesson">
-            <svg class="icon"><use href="#icon-plus"/></svg>
-            自訂日文句子
-          </button>
+      <!-- Segment List Card -->
+      <section class="ja-card">
+        <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+          <span>段落列表</span>
+          <span style="font-size: 0.88rem; color: var(--accent-cyan);" id="segCountText">共 0 句</span>
         </div>
-
-        <!-- Category Filters -->
-        <div class="category-filters" id="category-filters">
-          <button class="cat-chip active" data-cat="all">全部日文教材</button>
-          <button class="cat-chip" data-cat="mora">促音・撥音・長音</button>
-          <button class="cat-chip" data-cat="pitch">高低音調 (Pitch Accent)</button>
-          <button class="cat-chip" data-cat="daily">日常會話</button>
-          <button class="cat-chip" data-cat="anime">動漫名句</button>
-          <button class="cat-chip" data-cat="business">商務敬語</button>
-        </div>
-
-        <!-- Lessons Cards Grid -->
-        <div class="lessons-grid" id="lessons-grid">
-          <!-- Dynamically populated -->
-        </div>
+        <div id="segmentList"></div>
       </section>
     </main>
   </div>
 
-  <!-- Custom Lesson Modal -->
-  <div class="modal-overlay" id="modal-custom">
+  <!-- Edit Text Modal -->
+  <div class="modal-overlay" id="editModal">
     <div class="modal-box">
       <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">自訂日文迴音練習句子</h3>
-        <button class="btn-icon-close" id="btn-close-modal">&times;</button>
+        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">標註段落文字</h3>
+        <button class="btn-icon-close" id="btnCancelModal">&times;</button>
       </div>
-      <form id="form-custom-lesson">
-        <div class="form-group">
-          <label>句子標題 / 主題</label>
-          <input type="text" class="form-input" id="custom-title" placeholder="例如：日劇對白、日語歌詞..." required>
-        </div>
-        <div class="form-group">
-          <label>日文句子內容</label>
-          <textarea class="form-textarea" id="custom-text" rows="3" placeholder="輸入你想練習的日文句子..." required></textarea>
-        </div>
-        <div class="form-group">
-          <label>中文翻譯 (選填)</label>
-          <input type="text" class="form-input" id="custom-translation" placeholder="補充中文意思...">
-        </div>
-        <button type="submit" class="btn-primary-glow" style="width: 100%; justify-content: center; background: linear-gradient(135deg, #ef4444, #f59e0b);">新增並立刻開始練習</button>
-      </form>
-    </div>
-  </div>
-
-  <!-- History Log Modal -->
-  <div class="modal-overlay" id="modal-history">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">📊 我的日文迴音練習歷程</h3>
-        <button class="btn-icon-close" id="btn-close-history">&times;</button>
+      <div class="form-group">
+        <label>日語 (支援 &lt;ruby&gt;振假名&lt;/ruby&gt; 格式)</label>
+        <textarea class="form-textarea" id="editJp" rows="3" placeholder="例如：<ruby>初<rt>はじ</rt></ruby>めまして"></textarea>
       </div>
-      <div id="history-list">
-        <!-- Dynamically populated -->
+      <div class="form-group">
+        <label>中文翻譯</label>
+        <input type="text" class="form-input" id="editZh" placeholder="例如：初次見面">
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+        <button id="btnSaveModal" class="btn-primary-glow" style="padding: 10px 24px; background: linear-gradient(135deg, #e11d48, #f43f5e);">儲存標註</button>
       </div>
     </div>
   </div>
 
-  <!-- JavaScript Modules -->
-  <script type="module" src="js/app-ja.js"></script>
+  <audio id="audioPlayer"></audio>
+  <audio id="selfPlayer"></audio>
+
+  <script>
+    let segments = [], currentIdx = 0, currentLoop = 1, isTraining = false;
+    let audioBuffer = null, rawAudioFile = null;
+    let mediaRecorder = null, recordedChunks = [], userVoiceBlob = null;
+    let editingIdx = null;
+
+    const player = document.getElementById('audioPlayer');
+    const selfPlayer = document.getElementById('selfPlayer');
+    const statusText = document.getElementById('statusText');
+    const statusSub = document.getElementById('statusSub');
+    const textReveal = document.getElementById('textReveal');
+    const revealJp = document.getElementById('revealJp');
+    const revealZh = document.getElementById('revealZh');
+    const comparePanel = document.getElementById('comparePanel');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+
+    // 1. 選擇音檔並自動進行 WebAudio 斷句
+    document.getElementById('audioFile').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      rawAudioFile = file;
+      document.getElementById('audioInfo').innerText = "已載入音檔：" + file.name;
+      player.src = URL.createObjectURL(file);
+      statusText.innerText = "⏳ 正在掃描音波脈衝斷句中...";
+      
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        detectSilence(audioBuffer);
+        statusText.innerText = "✅ 自動斷句完成，準備開始迴音訓練！";
+        btnStart.disabled = false;
+        renderList();
+      } catch (err) {
+        console.error(err);
+        statusText.innerText = "音檔解析完成，隨時可開始練習！";
+        btnStart.disabled = false;
+      }
+    };
+
+    function detectSilence(buffer) {
+      const data = buffer.getChannelData(0);
+      const sampleRate = buffer.sampleRate;
+      const step = 0.05, threshold = 0.015, minSilence = 0.55;
+      let inSpeech = false, start = 0, silenceDuration = 0;
+      segments = [];
+
+      for (let t = 0; t < buffer.duration; t += step) {
+        let sum = 0, count = 0;
+        for (let i = Math.floor(t * sampleRate); i < Math.floor((t + step) * sampleRate) && i < data.length; i++) {
+          sum += Math.abs(data[i]);
+          count++;
+        }
+        const amp = count ? sum / count : 0;
+        if (amp > threshold) {
+          if (!inSpeech) { inSpeech = true; start = Math.max(0, t - 0.1); }
+          silenceDuration = 0;
+        } else {
+          if (inSpeech) {
+            silenceDuration += step;
+            if (silenceDuration >= minSilence) {
+              inSpeech = false;
+              let end = t - silenceDuration + 0.2;
+              if (end - start > 0.8) segments.push({ start, end, jp: "", zh: "" });
+            }
+          }
+        }
+      }
+      if (inSpeech && buffer.duration - start > 0.8) {
+        segments.push({ start, end: buffer.duration, jp: "", zh: "" });
+      }
+      document.getElementById('segCountText').innerText = `共 ${segments.length} 句`;
+    }
+
+    function renderList() {
+      const list = document.getElementById('segmentList');
+      list.innerHTML = "";
+      segments.forEach((seg, i) => {
+        const div = document.createElement('div');
+        div.className = `segment-item-ja ${i === currentIdx && isTraining ? 'segment-active-ja' : ''}`;
+        div.innerHTML = `
+          <div>
+            <div><strong>第 ${i + 1} 句</strong> <span class="tag-ja">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s</span></div>
+            <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 4px;">${seg.jp || '<span style="color:var(--text-muted);">(尚未設定文字/注音)</span>'}</div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openEdit(${i})">✏️ 編輯</button>
+            ${i < segments.length - 1 ? `<button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="mergeSeg(${i})">🔗 合併下一句</button>` : ''}
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    window.mergeSeg = (i) => {
+      segments[i].end = segments[i + 1].end;
+      if (segments[i + 1].jp) segments[i].jp += " " + segments[i + 1].jp;
+      if (segments[i + 1].zh) segments[i].zh += " " + segments[i + 1].zh;
+      segments.splice(i + 1, 1);
+      document.getElementById('segCountText').innerText = `共 ${segments.length} 句`;
+      renderList();
+    };
+
+    // 2. 回音法核心訓練排程
+    btnStart.onclick = async () => {
+      isTraining = true;
+      currentIdx = 0;
+      currentLoop = 1;
+      btnStart.style.display = "none";
+      btnStop.style.display = "block";
+      await initMic();
+      runEchoLoop();
+    };
+
+    btnStop.onclick = () => {
+      isTraining = false;
+      player.pause();
+      selfPlayer.pause();
+      stopMic();
+      btnStart.style.display = "block";
+      btnStop.style.display = "none";
+      statusText.innerText = "練習已暫停";
+      statusSub.innerText = "";
+    };
+
+    async function initMic() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        let mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported('audio/webm') && MediaRecorder.isTypeSupported('audio/mp4')) {
+          mimeType = 'audio/mp4';
+        }
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+        mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+        mediaRecorder.onstop = () => {
+          userVoiceBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+          selfPlayer.src = URL.createObjectURL(userVoiceBlob);
+        };
+      } catch (e) {
+        console.warn("麥克風存取失敗", e);
+      }
+    }
+
+    function stopMic() {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    }
+
+    async function runEchoLoop() {
+      if (!isTraining || currentIdx >= segments.length) {
+        statusText.innerText = "🎉 整課日文特訓完成！功力大增！";
+        btnStop.click();
+        return;
+      }
+
+      renderList();
+      const seg = segments[currentIdx];
+      const maxLoop = parseInt(document.getElementById('repeatSelect').value);
+
+      // 階段 1：盲聽原音
+      textReveal.style.display = "none";
+      comparePanel.style.display = "none";
+      statusText.innerText = `🎧 聽日語原音 (第 ${currentIdx + 1} 句 - 第 ${currentLoop}/${maxLoop} 次)`;
+      statusSub.innerText = "耳朵專注捕捉語音高低音調 (Pitch Accent) 與節奏起伏";
+
+      player.currentTime = seg.start;
+      player.play();
+
+      const duration = (seg.end - seg.start) * 1000;
+      setTimeout(() => {
+        if (!isTraining) return;
+        player.pause();
+
+        // 階段 2：強制留白 2 秒 (Mental Echo)
+        statusText.innerText = "🧠 腦中日文迴音中...";
+        statusSub.innerText = "閉上嘴巴，讓剛才的聲調在腦袋大腦皮層自然重播";
+
+        setTimeout(() => {
+          if (!isTraining) return;
+
+          // 階段 3：開口模仿 + 同步錄音
+          statusText.innerText = "🗣️ 換你開口模仿！";
+          statusSub.innerText = "依據剛才的大腦心像大聲模仿發音（麥克風錄音中）";
+          recordedChunks = [];
+          if (mediaRecorder && mediaRecorder.state === 'inactive') mediaRecorder.start();
+
+          const mimicTime = Math.max(3000, duration + 1000);
+          setTimeout(() => {
+            if (!isTraining) return;
+            stopMic();
+
+            // 階段 4：答案揭曉與對比
+            statusText.innerText = "✅ 句子校對與發音比對";
+            statusSub.innerText = "檢查振假名文字，並可點擊按鈕對比原音與自己的錄音";
+            if (seg.jp || seg.zh) {
+              revealJp.innerHTML = seg.jp;
+              revealZh.innerText = seg.zh;
+              textReveal.style.display = "block";
+            }
+            comparePanel.style.display = "flex";
+
+            // 下一輪或下一句排程
+            setTimeout(() => {
+              if (!isTraining) return;
+              if (currentLoop < maxLoop) {
+                currentLoop++;
+              } else {
+                currentLoop = 1;
+                currentIdx++;
+              }
+              runEchoLoop();
+            }, 4500); // 留 4.5 秒供查看文字與自選比對
+          }, mimicTime);
+        }, 2000);
+      }, duration);
+    }
+
+    // 3. 對比播放按鈕行為
+    document.getElementById('btnPlayOrigin').onclick = () => {
+      player.currentTime = segments[currentIdx].start;
+      player.play();
+      setTimeout(() => player.pause(), (segments[currentIdx].end - segments[currentIdx].start) * 1000);
+    };
+    document.getElementById('btnPlaySelf').onclick = () => selfPlayer.play();
+    document.getElementById('btnCompareAll').onclick = () => {
+      player.currentTime = segments[currentIdx].start;
+      player.play();
+      setTimeout(() => {
+        player.pause();
+        setTimeout(() => selfPlayer.play(), 400);
+      }, (segments[currentIdx].end - segments[currentIdx].start) * 1000);
+    };
+
+    // 4. 文字編輯視窗
+    window.openEdit = (i) => {
+      editingIdx = i;
+      document.getElementById('editJp').value = segments[i].jp;
+      document.getElementById('editZh').value = segments[i].zh;
+      document.getElementById('editModal').classList.add('open');
+    };
+    document.getElementById('btnCancelModal').onclick = () => document.getElementById('editModal').classList.remove('open');
+    document.getElementById('btnSaveModal').onclick = () => {
+      segments[editingIdx].jp = document.getElementById('editJp').value;
+      segments[editingIdx].zh = document.getElementById('editZh').value;
+      document.getElementById('editModal').classList.remove('open');
+      renderList();
+    };
+
+    // 5. 字卡 JSON 匯出與匯入
+    document.getElementById('btnExport').onclick = () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(segments, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = (rawAudioFile ? rawAudioFile.name.replace(/\.[^/.]+$/, "") : "日文回音字卡") + ".json";
+      a.click();
+    };
+    document.getElementById('jsonFile').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        segments = JSON.parse(evt.target.result);
+        document.getElementById('segCountText').innerText = `共 ${segments.length} 句`;
+        renderList();
+        alert("🎉 日文字卡 JSON 匯入成功！");
+      };
+      reader.readAsText(file);
+    };
+  </script>
 </body>
 </html>

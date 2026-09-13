@@ -65,27 +65,74 @@ export class AudioEngine {
     return this.customAudioElement;
   }
 
-  playCustomAudio(rate = 1.0) {
+  /**
+   * 播放音檔指定時間區段 [startTimeSec ~ endTimeSec]
+   */
+  playAudioSegment(startTimeSec = 0, endTimeSec = null, rate = 1.0) {
     return new Promise((resolve) => {
       if (!this.customAudioElement) {
-        resolve(2000);
+        resolve();
         return;
       }
 
       this.stopSpeech();
       this.customAudioElement.playbackRate = rate;
-      this.customAudioElement.currentTime = 0;
+      this.customAudioElement.currentTime = startTimeSec;
 
-      this.customAudioElement.onended = () => {
-        resolve();
+      const duration = endTimeSec ? (endTimeSec - startTimeSec) : (this.customAudioElement.duration - startTimeSec);
+      const scaledDurationMs = (duration / rate) * 1000;
+
+      const onTimeUpdate = () => {
+        if (endTimeSec && this.customAudioElement.currentTime >= endTimeSec) {
+          this.customAudioElement.pause();
+          this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
+          resolve();
+        }
       };
 
-      this.customAudioElement.onerror = () => {
+      this.customAudioElement.addEventListener('timeupdate', onTimeUpdate);
+
+      this.customAudioElement.onended = () => {
+        this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
         resolve();
       };
 
       this.customAudioElement.play().catch(() => resolve());
+
+      // 備用定時器防呆
+      setTimeout(() => {
+        if (!this.customAudioElement.paused && endTimeSec && this.customAudioElement.currentTime >= endTimeSec) {
+          this.customAudioElement.pause();
+          this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
+          resolve();
+        }
+      }, scaledDurationMs + 300);
     });
+  }
+
+  /**
+   * 自動將長音檔切分成 3~5 秒的迴音分句區段清單
+   */
+  generateAudioSegments(segmentLengthSec = 4.0) {
+    if (!this.customAudioElement || !this.customAudioElement.duration) return [];
+    const totalDuration = this.customAudioElement.duration;
+    const segments = [];
+    let start = 0;
+    let index = 1;
+
+    while (start < totalDuration) {
+      const end = Math.min(totalDuration, start + segmentLengthSec);
+      segments.push({
+        id: `seg-${index}`,
+        label: `分句 ${index} (${start.toFixed(1)}s ~ ${end.toFixed(1)}s)`,
+        start: parseFloat(start.toFixed(1)),
+        end: parseFloat(end.toFixed(1))
+      });
+      start = end;
+      index++;
+    }
+
+    return segments;
   }
 
   stopCustomAudio() {
