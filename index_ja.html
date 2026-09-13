@@ -175,8 +175,8 @@
             ☁️ 彈出雲端網址視窗
           </button>
         </div>
-        <!-- iOS Files App Compatible File Input (無 accept 限制，iOS 檔案不反灰) -->
-        <input type="file" id="audioFile" style="display: none;">
+        <!-- iOS Safari Compatible File Input (Opacity 0 免受 display:none 事件阻擋) -->
+        <input type="file" id="audioFile" style="opacity: 0; position: absolute; width: 1px; height: 1px; z-index: -1; pointer-events: none;">
         
         <!-- iPhone 1-Tap Quick Cloud Link Input Bar (免彈窗直接貼上) -->
         <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
@@ -184,7 +184,7 @@
           <button id="btnQuickCloud" class="btn-secondary" style="white-space: nowrap; border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 600; min-height: 44px; padding: 0 16px;">☁️ 讀取網址</button>
         </div>
 
-        <div id="audioInfo" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 16px;">尚未選取音檔</div>
+        <div id="audioInfo" style="font-size: 0.9rem; color: #38bdf8; text-align: center; margin-bottom: 16px; font-weight: 600;">尚未選取音檔</div>
 
         <div class="status-box-ja">
           <div id="statusText" class="status-text-ja">請先選擇音檔</div>
@@ -203,10 +203,15 @@
         </div>
 
         <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-          <select id="repeatSelect" class="select-custom" style="flex: 1; padding: 12px; font-size: 0.92rem;">
+          <select id="repeatSelect" class="select-custom" style="flex: 1 1 180px; padding: 12px; font-size: 0.92rem;">
             <option value="1">單句練 1 次即跳下一句</option>
             <option value="2">單句重複練 2 次</option>
             <option value="3" selected>單句重複練 3 次</option>
+          </select>
+          <select id="speedSelectJa" class="select-custom" style="flex: 1 1 140px; padding: 12px; font-size: 0.92rem;">
+            <option value="0.75">0.75x (慢速拆解音調)</option>
+            <option value="1.0" selected>1.0x (標準速度)</option>
+            <option value="1.25">1.25x (快速挑戰)</option>
           </select>
         </div>
 
@@ -296,37 +301,36 @@
     const btnStart = document.getElementById('btnStart');
     const btnStop = document.getElementById('btnStop');
 
-    // 1. 選擇音檔並自動進行 WebAudio 斷句
-    document.getElementById('audioFile').onchange = async (e) => {
-      const file = e.target.files[0];
+    // 1. 選擇音檔並自動進行 WebAudio 斷句 (iOS Safari 相容優化)
+    const audioInputEl = document.getElementById('audioFile');
+    audioInputEl.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
       if (!file) return;
 
-      const validExts = ['.mp3', '.m4a', '.wav', '.aac', '.ogg', '.flac', '.mp4', '.m4b'];
-      const isAudio = file.type.startsWith('audio/') || validExts.some(ext => file.name.toLowerCase().endsWith(ext));
-      if (!isAudio) {
-        alert('請選擇有效的 MP3 / M4A / WAV 音檔！');
-        return;
-      }
-
+      // 立即更新畫面提示（確保 iOS 上使用者第一秒即能看到反饋）
       rawAudioFile = file;
-      document.getElementById('audioInfo').innerText = "已載入本機音檔：" + file.name;
-      player.src = URL.createObjectURL(file);
+      document.getElementById('audioInfo').innerHTML = "🟢 <b>已成功載入音檔：</b> " + file.name;
       statusText.innerText = "⏳ 正在掃描音波脈衝斷句中...";
-      
+      statusSub.innerText = "檔案大小：" + (file.size / (1024 * 1024)).toFixed(2) + " MB";
+
       try {
+        const objectUrl = URL.createObjectURL(file);
+        player.src = objectUrl;
+        player.load();
+
         const arrayBuffer = await file.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContextClass();
         audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
         detectSilence(audioBuffer);
         statusText.innerText = "✅ 自動斷句完成，準備開始迴音訓練！";
         btnStart.disabled = false;
         renderList();
       } catch (err) {
-        console.error(err);
-        statusText.innerText = "音檔解析完成，隨時可開始練習！";
+        console.warn("WebAudio 自動斷句受限，進入標準播放模式", err);
+        statusText.innerText = "✅ 音檔載入完成，點擊開始特訓！";
         btnStart.disabled = false;
-      }
-    };
+    });
 
     function detectSilence(buffer) {
       const data = buffer.getChannelData(0);
@@ -453,9 +457,11 @@
       statusSub.innerText = "耳朵專注捕捉語音高低音調 (Pitch Accent) 與節奏起伏";
 
       player.currentTime = seg.start;
+      player.playbackRate = parseFloat(document.getElementById('speedSelectJa').value) || 1.0;
       player.play();
 
-      const duration = (seg.end - seg.start) * 1000;
+      const speed = parseFloat(document.getElementById('speedSelectJa').value) || 1.0;
+      const duration = ((seg.end - seg.start) / speed) * 1000;
       setTimeout(() => {
         if (!isTraining) return;
         player.pause();
@@ -554,35 +560,49 @@
         alert("🎉 日文字卡 JSON 匯入成功！");
       };
     // 6. 雲端音檔網址讀取 (Google Drive / Dropbox / 直連網址)
+    const parseGoogleDriveId = (url) => {
+      const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (m1) return m1[1];
+      const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m2) return m2[1];
+      const m3 = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m3) return m3[1];
+      return null;
+    };
+
     const loadCloudUrl = async (rawUrl) => {
       let url = rawUrl.trim();
       if (!url) return;
 
-      // Google Drive / Dropbox 連結解析
-      const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
-      if (gdriveMatch) {
-        const fileId = gdriveMatch[1];
-        url = `https://docs.google.com/uc?export=download&id=${fileId}`;
+      const fileId = parseGoogleDriveId(url);
+      if (fileId) {
+        // 使用 Google 高速 CDN 直連網址
+        url = `https://lh3.googleusercontent.com/d/${fileId}`;
       } else if (url.includes('dropbox.com')) {
-        url = url.replace('dl=0', 'raw=1');
+        url = url.replace('dl=0', 'raw=1').replace('www.dropbox.com', 'dl.dropboxusercontent.com');
       }
 
-      document.getElementById('audioInfo').innerText = "☁️ 已載入雲端音檔：" + url;
+      document.getElementById('audioInfo').innerHTML = "☁️ <b>已載入雲端音檔連結：</b><br><span style='font-size:0.75rem; word-break:break-all; color:#94a3b8;'>" + rawUrl + "</span>";
       player.src = url;
-      statusText.innerText = "⏳ 正在從雲端載入音波資料並斷句中...";
+      player.load();
+      statusText.innerText = "⏳ 正在連接雲端串流音檔...";
+      statusSub.innerText = "如為 Google Drive 連結，請確認已開啟「知道連結的任何人」共用權限";
 
       try {
         const response = await fetch(url);
+        if (!response.ok) throw new Error("HTTP Status " + response.status);
         const arrayBuffer = await response.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContextClass();
         audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
         detectSilence(audioBuffer);
         statusText.innerText = "✅ 雲端音檔下載與斷句完成！";
         btnStart.disabled = false;
         renderList();
       } catch (err) {
-        console.warn("跨網域 Fetch 受限，啟動直接串流播放模式", err);
-        statusText.innerText = "✅ 雲端音檔連結載入成功，點擊開始特訓！";
+        console.warn("CORS 限制無法讀取二進位波形，已轉為標準串流播放模式", err);
+        statusText.innerText = "✅ 雲端音檔已連線，點擊開始特訓！";
+        statusSub.innerText = "提示：若播放無聲音，請確定 Drive 共用權限設為「知道連結的人皆可檢視」";
         btnStart.disabled = false;
       }
     };
