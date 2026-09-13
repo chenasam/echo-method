@@ -211,10 +211,16 @@
               顯示字幕 (揭露)
             </button>
 
-            <label class="btn-secondary" style="cursor: pointer;">
-              🎵 選擇/上傳音檔 (MP3/WAV)
-              <input type="file" id="audio-file-input" accept="audio/*" style="display: none;">
-            </label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <label class="btn-secondary" style="cursor: pointer;">
+                📁 選擇本機音檔 (MP3/WAV)
+                <input type="file" id="audio-file-input" accept="audio/*" style="display: none;">
+              </label>
+
+              <button class="btn-secondary" id="btn-cloud-url" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">
+                ☁️ 載入雲端網址 (Google Drive)
+              </button>
+            </div>
 
             <select class="select-custom" id="speed-selector">
               <option value="0.75">0.75x (慢速拆解)</option>
@@ -261,6 +267,26 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Cloud URL Modal -->
+  <div class="modal-overlay" id="modal-cloud">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">☁️ 載入雲端音檔網址</h3>
+        <button class="btn-icon-close" id="btn-close-cloud">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>貼上雲端音檔連結 (支援 Google Drive 分享連結、Dropbox 或 MP3 直連網址)</label>
+        <input type="text" class="form-input" id="cloud-url-input" placeholder="例如：https://drive.google.com/file/d/1ABC.../view">
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
+          💡 小撇步：若使用 Google Drive，請確保檔案已設為「知道連結的人皆可存取」。
+        </p>
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+        <button id="btn-fetch-cloud" class="btn-primary-glow" style="padding: 10px 24px; background: linear-gradient(135deg, #06b6d4, #3b82f6);">讀取雲端音檔</button>
+      </div>
+    </div>
   </div>
 
   <!-- Custom Lesson Modal -->

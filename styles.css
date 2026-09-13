@@ -2,37 +2,41 @@
    回音法 (Echo Method) Design System & Modern Glassmorphism Styling
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&family=Noto+Serif+JP:wght@600;700;900&family=Outfit:wght@500;600;700;800&family=Zen+Maru+Gothic:wght@500;700&display=swap');
 
 :root {
-  /* Color Tokens */
-  --bg-dark: #090d16;
-  --bg-card: rgba(18, 24, 38, 0.75);
-  --bg-card-border: rgba(255, 255, 255, 0.08);
-  --bg-hover: rgba(255, 255, 255, 0.05);
+  /* 和風與現代日式色彩系 (Japanese Palette) */
+  --bg-dark: #121319;
+  --bg-card: rgba(26, 28, 38, 0.85);
+  --bg-card-border: rgba(251, 113, 133, 0.15);
+  --bg-hover: rgba(251, 113, 133, 0.08);
 
-  --accent-purple: #8b5cf6;
-  --accent-purple-glow: rgba(139, 92, 246, 0.35);
-  --accent-cyan: #06b6d4;
-  --accent-cyan-glow: rgba(6, 182, 212, 0.35);
-  --accent-green: #10b981;
-  --accent-red: #ef4444;
+  --accent-sakura: #fb7185;           /* 櫻花粉 */
+  --accent-rose: #e11d48;             /* 撫子紅 / 胭脂 */
+  --accent-sakura-glow: rgba(251, 113, 133, 0.35);
 
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --accent-fuji: #818cf8;             /* 富士紫 */
+  --accent-cyan: #38bdf8;             /* 淺水藍 */
+  --accent-green: #34d399;            /* 抹茶綠 */
+  --accent-gold: #fbbf24;             /* 山吹黃 */
 
-  --font-heading: 'Outfit', sans-serif;
-  --font-body: 'Inter', 'Noto Sans TC', -apple-system, sans-serif;
+  --text-primary: #fafaf9;
+  --text-secondary: #d6d3d1;
+  --text-muted: #a8a29e;
 
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --font-heading: 'Zen Maru Gothic', 'Outfit', sans-serif;
+  --font-serif: 'Noto Serif JP', serif;
+  --font-body: 'Noto Sans JP', 'Inter', -apple-system, sans-serif;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-full: 9999px;
 
-  --shadow-glow: 0 0 25px var(--accent-purple-glow);
-  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --shadow-glow: 0 0 30px var(--accent-sakura-glow);
+  --shadow-japanese: 0 12px 35px rgba(0, 0, 0, 0.45);
+  --transition-fast: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Reset & Base Setup */
@@ -51,7 +55,7 @@ body {
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: var(--font-body);
-  line-height: 1.6;
+  line-height: 1.7;
   min-height: 100vh;
   padding-bottom: 60px;
 }
@@ -79,22 +83,22 @@ body {
 }
 
 .logo-icon {
-  width: 44px;
-  height: 44px;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+  width: 46px;
+  height: 46px;
+  background: linear-gradient(135deg, var(--accent-rose), var(--accent-sakura));
   border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 20px var(--accent-purple-glow);
+  box-shadow: 0 0 25px var(--accent-sakura-glow);
 }
 
 .logo-title {
   font-family: var(--font-heading);
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  letter-spacing: -0.5px;
-  background: linear-gradient(135deg, #ffffff, #cbd5e1);
+  letter-spacing: -0.2px;
+  background: linear-gradient(135deg, #ffffff, #fecdd3);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -674,19 +678,98 @@ body {
   fill: currentColor;
 }
 
-/* Responsive Layout */
-@media (max-width: 768px) {
-  .workflow-steps-bar {
-    grid-template-columns: repeat(2, 1fr);
+/* ==========================================================================
+   Mobile-First Layout & Touch Optimization (手機端觸控與版面微調)
+   ========================================================================== */
+
+@media (max-width: 640px) {
+  body {
+    padding: 10px 10px 40px 10px;
   }
-  .controls-bar {
+
+  .app-container {
+    padding: 0 4px;
+  }
+
+  .app-header {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 4px;
+    margin-bottom: 16px;
   }
-  .main-action-group {
+
+  .logo-title {
+    font-size: 1.35rem;
+  }
+
+  .header-stats {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .ja-card, .trainer-card {
+    padding: 16px 14px !important;
+    border-radius: var(--radius-md) !important;
+    margin-bottom: 16px !important;
+  }
+
+  .status-box-ja {
+    min-height: 95px !important;
+    padding: 14px 10px !important;
+  }
+
+  .status-text-ja {
+    font-size: 1.15rem !important;
+  }
+
+  .text-reveal-ja ruby {
+    font-size: 1.25rem !important;
+  }
+
+  /* Mobile Touch Buttons */
+  .btn-primary-glow, .btn-secondary, .btn-compare-ja {
+    min-height: 48px;
+    padding: 12px 16px !important;
+    font-size: 0.95rem !important;
+    border-radius: var(--radius-md) !important;
+    touch-action: manipulation;
+  }
+
+  .btn-primary-glow:active, .btn-secondary:active, .btn-compare-ja:active {
+    transform: scale(0.97);
+  }
+
+  .compare-panel-ja {
     flex-direction: column;
+    gap: 8px;
   }
-  .sentence-text {
-    font-size: 1.4rem;
+
+  .btn-compare-ja {
+    width: 100%;
+    text-align: center;
+  }
+
+  .segment-item-ja {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 8px;
+  }
+
+  .segment-item-ja > div:last-child {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .modal-box {
+    padding: 20px 16px !important;
+    width: 95% !important;
+  }
+
+  .select-custom {
+    width: 100%;
+    min-height: 44px;
   }
 }

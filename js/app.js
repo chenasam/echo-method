@@ -93,7 +93,7 @@ class EchoApp {
       this.playbackRate = parseFloat(e.target.value);
     });
 
-    // 選擇/上傳自訂音檔 (MP3, WAV, M4A, OGG)
+    // 選擇/上傳自訂本機音檔 (MP3, WAV, M4A, OGG)
     const audioFileInput = document.getElementById('audio-file-input');
     if (audioFileInput) {
       audioFileInput.addEventListener('change', (e) => {
@@ -106,12 +106,49 @@ class EchoApp {
           audio.onloadedmetadata = () => {
             this.setupSegmentPanel();
           };
-          // 定時備用
           setTimeout(() => this.setupSegmentPanel(), 800);
 
-          alert(`🎵 已成功載入音檔：${file.name}\n已在上方為您自動切分分句，您也可自行微調播放區段！`);
-          this.elEchoStatusText.textContent = `已載入自訂音檔：${file.name}`;
+          alert(`📁 已成功載入本機音檔：${file.name}\n已在上方為您自動切分分句！`);
+          this.elEchoStatusText.textContent = `已載入本機音檔：${file.name}`;
         }
+      });
+    }
+
+    // 雲端音檔彈窗與讀取
+    const modalCloud = document.getElementById('modal-cloud');
+    const btnCloudUrl = document.getElementById('btn-cloud-url');
+    const btnCloseCloud = document.getElementById('btn-close-cloud');
+    const btnFetchCloud = document.getElementById('btn-fetch-cloud');
+    const cloudUrlInput = document.getElementById('cloud-url-input');
+
+    if (btnCloudUrl && modalCloud) {
+      btnCloudUrl.addEventListener('click', () => modalCloud.classList.add('open'));
+      btnCloseCloud?.addEventListener('click', () => modalCloud.classList.remove('open'));
+      btnFetchCloud?.addEventListener('click', () => {
+        let url = cloudUrlInput.value.trim();
+        if (!url) return;
+
+        // Google Drive 連結解析
+        const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (gdriveMatch) {
+          const fileId = gdriveMatch[1];
+          url = `https://docs.google.com/uc?export=download&id=${fileId}`;
+        } else if (url.includes('dropbox.com')) {
+          url = url.replace('dl=0', 'raw=1');
+        }
+
+        modalCloud.classList.remove('open');
+        this.audioEngine.customAudioElement = new Audio(url);
+        this.hasCustomAudio = true;
+        this.customAudioName = "雲端音檔";
+
+        this.audioEngine.customAudioElement.onloadedmetadata = () => {
+          this.setupSegmentPanel();
+        };
+        setTimeout(() => this.setupSegmentPanel(), 1000);
+
+        alert(`☁️ 已成功載入雲端音檔網址！`);
+        this.elEchoStatusText.textContent = `已載入雲端音檔：${url}`;
       });
     }
 

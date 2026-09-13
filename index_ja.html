@@ -167,9 +167,14 @@
     <main>
       <!-- Main Japanese Echo Core Card -->
       <section class="ja-card">
-        <label class="btn-primary-glow" for="audioFile" style="width: 100%; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e); cursor: pointer; margin-bottom: 8px;">
-          📁 選擇『來學日本語』/ 課文 MP3 音檔
-        </label>
+        <div style="display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;">
+          <label class="btn-primary-glow" for="audioFile" style="flex: 1 1 200px; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e); cursor: pointer; min-height: 48px;">
+            📁 選擇本機『來學日本語』MP3
+          </label>
+          <button class="btn-secondary" id="btnCloudUrl" style="flex: 1 1 200px; justify-content: center; border-color: var(--accent-cyan); color: var(--accent-cyan); min-height: 48px;">
+            ☁️ 載入雲端音檔 (Google Drive)
+          </button>
+        </div>
         <input type="file" id="audioFile" accept="audio/*" style="display: none;">
         <div id="audioInfo" style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-bottom: 16px;">尚未選取音檔</div>
 
@@ -220,6 +225,26 @@
         <div id="segmentList"></div>
       </section>
     </main>
+  </div>
+
+  <!-- Cloud URL Modal -->
+  <div class="modal-overlay" id="cloudModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">☁️ 載入雲端音檔網址</h3>
+        <button class="btn-icon-close" id="btnCancelCloud">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>貼上雲端音檔連結 (支援 Google Drive 分享連結、Dropbox 或 MP3 直連網址)</label>
+        <input type="text" class="form-input" id="cloudUrlInput" placeholder="例如：https://drive.google.com/file/d/1ABC.../view">
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
+          💡 小撇步：若使用 Google Drive，請確保檔案已設為「知道連結的人皆可存取」。
+        </p>
+      </div>
+      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+        <button id="btnFetchCloud" class="btn-primary-glow" style="padding: 10px 24px; background: linear-gradient(135deg, #06b6d4, #3b82f6);">讀取雲端音檔</button>
+      </div>
+    </div>
   </div>
 
   <!-- Edit Text Modal -->
@@ -512,7 +537,46 @@
         renderList();
         alert("🎉 日文字卡 JSON 匯入成功！");
       };
-      reader.readAsText(file);
+    // 6. 雲端音檔網址讀取 (Google Drive / Dropbox / 直連網址)
+    document.getElementById('btnCloudUrl').onclick = () => {
+      document.getElementById('cloudModal').classList.add('open');
+    };
+    document.getElementById('btnCancelCloud').onclick = () => {
+      document.getElementById('cloudModal').classList.remove('open');
+    };
+
+    document.getElementById('btnFetchCloud').onclick = async () => {
+      let url = document.getElementById('cloudUrlInput').value.trim();
+      if (!url) return;
+
+      // Google Drive 連結解析
+      const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (gdriveMatch) {
+        const fileId = gdriveMatch[1];
+        url = `https://docs.google.com/uc?export=download&id=${fileId}`;
+      } else if (url.includes('dropbox.com')) {
+        url = url.replace('dl=0', 'raw=1');
+      }
+
+      document.getElementById('cloudModal').classList.remove('open');
+      document.getElementById('audioInfo').innerText = "☁️ 已載入雲端音檔：" + url;
+      player.src = url;
+      statusText.innerText = "⏳ 正在從雲端下載音波資料並斷句中...";
+
+      try {
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        detectSilence(audioBuffer);
+        statusText.innerText = "✅ 雲端音檔下載與斷句完成！";
+        btnStart.disabled = false;
+        renderList();
+      } catch (err) {
+        console.warn("跨網域 Fetch 受限，啟動直接串流播放模式", err);
+        statusText.innerText = "✅ 雲端音檔連結載入成功，點擊開始特訓！";
+        btnStart.disabled = false;
+      }
     };
   </script>
 </body>
