@@ -93,6 +93,21 @@ class EchoApp {
       this.playbackRate = parseFloat(e.target.value);
     });
 
+    // 選擇/上傳自訂音檔 (MP3, WAV, M4A, OGG)
+    const audioFileInput = document.getElementById('audio-file-input');
+    if (audioFileInput) {
+      audioFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.audioEngine.loadCustomAudioFile(file);
+          this.hasCustomAudio = true;
+          this.customAudioName = file.name;
+          alert(`🎵 已成功載入音檔：${file.name}\n開始迴音特訓時將直接播放您的音檔！`);
+          this.elEchoStatusText.textContent = `已載入自訂音檔：${file.name}`;
+        }
+      });
+    }
+
     // 分類篩選
     this.categoryFilters.addEventListener('click', (e) => {
       const btn = e.target.closest('.cat-chip');
@@ -216,10 +231,17 @@ class EchoApp {
 
     // 1. Step 1: Listen to native audio
     this.setStepActive('STEP1_LISTEN');
-    this.elEchoStatusText.textContent = '【Step 1 仔細聽】請專注聽母語發音的音調與連音...';
+    this.elEchoStatusText.textContent = this.hasCustomAudio 
+      ? `【Step 1 仔細聽】播放載入的音檔 (${this.customAudioName})...` 
+      : '【Step 1 仔細聽】請專注聽母語發音的音調與連音...';
     this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
 
-    const durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
+    let durationMs = 3000;
+    if (this.hasCustomAudio) {
+      await this.audioEngine.playCustomAudio(this.playbackRate);
+    } else {
+      durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
+    }
 
     // 2. Step 2: Mental Echo (心裡留白倒數)
     this.setStepActive('STEP2_ECHO');

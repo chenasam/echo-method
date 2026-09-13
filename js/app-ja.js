@@ -86,6 +86,20 @@ class EchoAppJA {
       this.playbackRate = parseFloat(e.target.value);
     });
 
+    const audioFileInput = document.getElementById('audio-file-input');
+    if (audioFileInput) {
+      audioFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.audioEngine.loadCustomAudioFile(file);
+          this.hasCustomAudio = true;
+          this.customAudioName = file.name;
+          alert(`🎵 已成功載入日文音檔：${file.name}\n開始迴音特訓時將直接播放您的日文音檔！`);
+          this.elEchoStatusText.textContent = `已載入自訂日文音檔：${file.name}`;
+        }
+      });
+    }
+
     this.categoryFilters.addEventListener('click', (e) => {
       const btn = e.target.closest('.cat-chip');
       if (!btn) return;
@@ -200,10 +214,17 @@ class EchoAppJA {
     this.audioEngine.ensureAudioContext();
 
     this.setStepActive('STEP1_LISTEN');
-    this.elEchoStatusText.textContent = '【Step 1 仔細聽】聆聽日語原音的高低音型 (Pitch Accent)...';
+    this.elEchoStatusText.textContent = this.hasCustomAudio
+      ? `【Step 1 仔細聽】播放載入的日文音檔 (${this.customAudioName})...`
+      : '【Step 1 仔細聽】聆聽日語原音的高低音型 (Pitch Accent)...';
     this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
 
-    const durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
+    let durationMs = 3000;
+    if (this.hasCustomAudio) {
+      await this.audioEngine.playCustomAudio(this.playbackRate);
+    } else {
+      durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
+    }
 
     this.setStepActive('STEP2_ECHO');
     this.elEchoStatusText.textContent = '【Step 2 心裡迴音】閉眼重現剛剛的高低降型與促音拍子...';

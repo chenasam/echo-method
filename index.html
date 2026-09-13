@@ -177,9 +177,14 @@
               顯示字幕 (揭露)
             </button>
 
+            <label class="btn-secondary" style="cursor: pointer;">
+              🎵 選擇/上傳音檔 (MP3/WAV)
+              <input type="file" id="audio-file-input" accept="audio/*" style="display: none;">
+            </label>
+
             <select class="select-custom" id="speed-selector">
               <option value="0.75">0.75x (慢速拆解)</option>
-              <option value="1.0" selected>1.0x (標準美音)</option>
+              <option value="1.0" selected>1.0x (標準速度)</option>
               <option value="1.25">1.25x (快速挑戰)</option>
             </select>
           </div>

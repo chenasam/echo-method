@@ -53,18 +53,45 @@ export class AudioEngine {
     }
   }
 
-  ensureAudioContext() {
-    if (!this.audioCtx) {
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtxClass) {
-        this.audioCtx = new AudioCtxClass();
-        this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 128;
-        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-      }
+  /**
+   * 載入自訂音檔 (MP3, WAV, M4A, OGG)
+   */
+  loadCustomAudioFile(file) {
+    if (this.customAudioUrl) {
+      URL.revokeObjectURL(this.customAudioUrl);
     }
-    if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+    this.customAudioUrl = URL.createObjectURL(file);
+    this.customAudioElement = new Audio(this.customAudioUrl);
+    return this.customAudioElement;
+  }
+
+  playCustomAudio(rate = 1.0) {
+    return new Promise((resolve) => {
+      if (!this.customAudioElement) {
+        resolve(2000);
+        return;
+      }
+
+      this.stopSpeech();
+      this.customAudioElement.playbackRate = rate;
+      this.customAudioElement.currentTime = 0;
+
+      this.customAudioElement.onended = () => {
+        resolve();
+      };
+
+      this.customAudioElement.onerror = () => {
+        resolve();
+      };
+
+      this.customAudioElement.play().catch(() => resolve());
+    });
+  }
+
+  stopCustomAudio() {
+    if (this.customAudioElement) {
+      this.customAudioElement.pause();
+      this.customAudioElement.currentTime = 0;
     }
   }
 
