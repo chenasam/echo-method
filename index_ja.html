@@ -167,16 +167,17 @@
     <main>
       <!-- Main Japanese Echo Core Card -->
       <section class="ja-card">
-        <div style="display: flex; gap: 10px; margin-bottom: 8px; flex-wrap: wrap;">
-          <label class="btn-primary-glow" for="audioFile" style="flex: 1 1 200px; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e); cursor: pointer; min-height: 48px;">
+        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+          <button class="btn-primary-glow" onclick="document.getElementById('audioFile').click()" style="flex: 1 1 200px; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e); cursor: pointer; min-height: 48px;">
             📁 選擇本機『來學日本語』MP3
-          </label>
+          </button>
           <button class="btn-secondary" id="btnCloudUrl" style="flex: 1 1 200px; justify-content: center; border-color: var(--accent-cyan); color: var(--accent-cyan); min-height: 48px;">
             ☁️ 彈出雲端網址視窗
           </button>
         </div>
-        <!-- iOS Safari Compatible File Input (Opacity 0 免受 display:none 事件阻擋) -->
-        <input type="file" id="audioFile" style="opacity: 0; position: absolute; width: 1px; height: 1px; z-index: -1; pointer-events: none;">
+
+        <!-- 獨立隱藏 File Input -->
+        <input type="file" id="audioFile" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac" style="display: none;">
         
         <!-- iPhone 1-Tap Quick Cloud Link Input Bar (免彈窗直接貼上) -->
         <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
@@ -184,7 +185,7 @@
           <button id="btnQuickCloud" class="btn-secondary" style="white-space: nowrap; border-color: var(--accent-cyan); color: var(--accent-cyan); font-weight: 600; min-height: 44px; padding: 0 16px;">☁️ 讀取網址</button>
         </div>
 
-        <div id="audioInfo" style="font-size: 0.9rem; color: #38bdf8; text-align: center; margin-bottom: 16px; font-weight: 600;">尚未選取音檔</div>
+        <div id="audioInfo" style="font-size: 0.95rem; color: #38bdf8; text-align: center; margin-bottom: 16px; font-weight: 700; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 8px;">尚未選取音檔</div>
 
         <div class="status-box-ja">
           <div id="statusText" class="status-text-ja">請先選擇音檔</div>
@@ -231,9 +232,15 @@
 
       <!-- Segment List Card -->
       <section class="ja-card">
-        <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-          <span>段落列表</span>
-          <span style="font-size: 0.88rem; color: var(--accent-cyan);" id="segCountText">共 0 句</span>
+        <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span>🎵 斷句列表與練習勾選</span>
+            <span style="font-size: 0.85rem; color: var(--accent-cyan);" id="segCountText">共 0 句</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="selectAllSegs(true)">☑️ 全選練習</button>
+            <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="selectAllSegs(false)">☐ 全不選</button>
+          </div>
         </div>
         <div id="segmentList"></div>
       </section>
@@ -301,36 +308,70 @@
     const btnStart = document.getElementById('btnStart');
     const btnStop = document.getElementById('btnStop');
 
-    // 1. 選擇音檔並自動進行 WebAudio 斷句 (iOS Safari 相容優化)
-    const audioInputEl = document.getElementById('audioFile');
-    audioInputEl.addEventListener('change', async (e) => {
+    // 1. 本機音檔選擇事件
+    const audioFileInput = document.getElementById('audioFile');
+    audioFileInput.onchange = function(e) {
       const file = e.target.files && e.target.files[0];
-      if (!file) return;
+      const audioInfo = document.getElementById('audioInfo');
+      const statusText = document.getElementById('statusText');
+      const statusSub = document.getElementById('statusSub');
+      const btnStart = document.getElementById('btnStart');
 
-      // 立即更新畫面提示（確保 iOS 上使用者第一秒即能看到反饋）
+      if (!file) {
+        audioInfo.innerHTML = "❌ 尚未讀取到檔案";
+        return;
+      }
+
+      // 第一毫秒立即同步呈現 UI 反饋與解鎖按鈕
       rawAudioFile = file;
-      document.getElementById('audioInfo').innerHTML = "🟢 <b>已成功載入音檔：</b> " + file.name;
-      statusText.innerText = "⏳ 正在掃描音波脈衝斷句中...";
-      statusSub.innerText = "檔案大小：" + (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      audioInfo.innerHTML = "🟢 <b>已成功選取音檔：</b> " + file.name + " (" + (file.size / (1024 * 1024)).toFixed(1) + " MB)";
+      statusText.innerText = "⏳ 正在處理音檔，準備開始...";
+      statusSub.innerText = "按鈕已解鎖，隨時可點擊「開始 4 步驟迴音訓練」";
+      btnStart.disabled = false;
+      btnStart.removeAttribute('disabled');
 
       try {
         const objectUrl = URL.createObjectURL(file);
         player.src = objectUrl;
         player.load();
-
-        const arrayBuffer = await file.arrayBuffer();
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContextClass();
-        audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        detectSilence(audioBuffer);
-        statusText.innerText = "✅ 自動斷句完成，準備開始迴音訓練！";
-        btnStart.disabled = false;
-        renderList();
       } catch (err) {
-        console.warn("WebAudio 自動斷句受限，進入標準播放模式", err);
-        statusText.innerText = "✅ 音檔載入完成，點擊開始特訓！";
-        btnStart.disabled = false;
-    });
+        console.warn("Blob URL 建立警告:", err);
+      }
+
+      // 異步波形脈衝斷句
+      setTimeout(async () => {
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          const audioCtx = new AudioContextClass();
+          audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          detectSilence(audioBuffer);
+
+          if (!segments || segments.length === 0) {
+            createDefaultSegments(audioBuffer.duration);
+          }
+          statusText.innerText = "✅ 自動斷句完成 (共 " + segments.length + " 句)，可開始特訓！";
+          renderList();
+        } catch (err) {
+          console.warn("WebAudio 自動斷句受限，進入標準播放模式", err);
+          createDefaultSegments(player.duration || 12);
+          statusText.innerText = "✅ 音檔載入完成，點擊開始特訓！";
+          renderList();
+        }
+      }, 100);
+    };
+
+    function createDefaultSegments(duration) {
+      if (!duration || duration <= 0) duration = 12;
+      segments = [];
+      let start = 0;
+      while (start < duration) {
+        let end = Math.min(duration, start + 4.0);
+        segments.push({ start, end, jp: "", zh: "", selected: true });
+        start = end;
+      }
+      renderList();
+    }
 
     function detectSilence(buffer) {
       const data = buffer.getChannelData(0);
@@ -355,48 +396,120 @@
             if (silenceDuration >= minSilence) {
               inSpeech = false;
               let end = t - silenceDuration + 0.2;
-              if (end - start > 0.8) segments.push({ start, end, jp: "", zh: "" });
+              if (end - start > 0.8) segments.push({ start, end, jp: "", zh: "", selected: true });
             }
           }
         }
       }
       if (inSpeech && buffer.duration - start > 0.8) {
-        segments.push({ start, end: buffer.duration, jp: "", zh: "" });
+        segments.push({ start, end: buffer.duration, jp: "", zh: "", selected: true });
       }
-      document.getElementById('segCountText').innerText = `共 ${segments.length} 句`;
+      renderList();
     }
 
     function renderList() {
       const list = document.getElementById('segmentList');
       list.innerHTML = "";
+      let selectedCount = 0;
+
       segments.forEach((seg, i) => {
+        const isSelected = seg.selected !== false;
+        if (isSelected) selectedCount++;
+        const dur = (seg.end - seg.start).toFixed(1);
+
         const div = document.createElement('div');
         div.className = `segment-item-ja ${i === currentIdx && isTraining ? 'segment-active-ja' : ''}`;
+        div.style.opacity = isSelected ? "1" : "0.45";
+        div.style.background = isSelected ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.2)";
+        div.style.borderRadius = "8px";
+        div.style.margin = "8px 0";
+        div.style.padding = "10px 14px";
+        div.style.border = isSelected ? "1px solid rgba(255,255,255,0.08)" : "1px dashed rgba(255,255,255,0.1)";
+
         div.innerHTML = `
-          <div>
-            <div><strong>第 ${i + 1} 句</strong> <span class="tag-ja">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s</span></div>
-            <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 4px;">${seg.jp || '<span style="color:var(--text-muted);">(尚未設定文字/注音)</span>'}</div>
-          </div>
-          <div style="display: flex; gap: 8px;">
-            <button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="openEdit(${i})">✏️ 編輯</button>
-            ${i < segments.length - 1 ? `<button class="btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="mergeSeg(${i})">🔗 合併下一句</button>` : ''}
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1 1 220px;">
+              <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect(${i})" style="width: 20px; height: 20px; cursor: pointer; accent-color: #f43f5e;" title="勾選是否練習此句">
+              <div>
+                <div>
+                  <strong>第 ${i + 1} 句</strong>
+                  <span class="tag-ja">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s (${dur}s)</span>
+                  ${isSelected ? '<span style="font-size:0.75rem; color:#4ade80; margin-left:4px;">[練習]</span>' : '<span style="font-size:0.75rem; color:#94a3b8; margin-left:4px;">[略過]</span>'}
+                </div>
+                <div style="font-size: 0.88rem; color: #cbd5e1; margin-top: 4px;">${seg.jp || '<span style="color:var(--text-muted);">(尚未設定文字/注音)</span>'}</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+              <button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="playPreview(${i})" title="試聽此句">▶️ 試聽</button>
+              <button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="openEdit(${i})" title="編輯文字">✏️ 編輯</button>
+              <button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="splitSeg(${i})" title="對半分割此句">✂️ 分割</button>
+              ${i < segments.length - 1 ? `<button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" onclick="mergeSeg(${i})" title="與下一句合併">🔗 合併</button>` : ''}
+              <button class="btn-secondary" style="padding: 5px 10px; font-size: 0.8rem; color: #f87171; border-color: rgba(248,113,113,0.3);" onclick="deleteSeg(${i})" title="刪除此句">🗑️ 刪除</button>
+            </div>
           </div>
         `;
         list.appendChild(div);
       });
+      document.getElementById('segCountText').innerText = `已勾選 ${selectedCount} / 共 ${segments.length} 句`;
     }
 
+    window.toggleSelect = (i) => {
+      segments[i].selected = segments[i].selected === false ? true : false;
+      renderList();
+    };
+
+    window.selectAllSegs = (flag) => {
+      segments.forEach(s => s.selected = flag);
+      renderList();
+    };
+
+    window.playPreview = (i) => {
+      const seg = segments[i];
+      player.currentTime = seg.start;
+      player.play();
+      const dur = (seg.end - seg.start) * 1000;
+      setTimeout(() => player.pause(), dur);
+    };
+
+    window.splitSeg = (i) => {
+      const seg = segments[i];
+      const dur = seg.end - seg.start;
+      if (dur < 0.6) {
+        alert("⚠️ 該句長度過短 (小於 0.6 秒)，無法再分割！");
+        return;
+      }
+      const mid = parseFloat(((seg.start + seg.end) / 2).toFixed(2));
+      const seg1 = { start: seg.start, end: mid, jp: seg.jp || '', zh: seg.zh || '', selected: seg.selected !== false };
+      const seg2 = { start: mid, end: seg.end, jp: '', zh: '', selected: seg.selected !== false };
+      segments.splice(i, 1, seg1, seg2);
+      renderList();
+    };
+
     window.mergeSeg = (i) => {
+      if (i >= segments.length - 1) return;
       segments[i].end = segments[i + 1].end;
-      if (segments[i + 1].jp) segments[i].jp += " " + segments[i + 1].jp;
-      if (segments[i + 1].zh) segments[i].zh += " " + segments[i + 1].zh;
+      if (segments[i + 1].jp) segments[i].jp = (segments[i].jp ? segments[i].jp + " " : "") + segments[i + 1].jp;
+      if (segments[i + 1].zh) segments[i].zh = (segments[i].zh ? segments[i].zh + " " : "") + segments[i + 1].zh;
       segments.splice(i + 1, 1);
-      document.getElementById('segCountText').innerText = `共 ${segments.length} 句`;
+      renderList();
+    };
+
+    window.deleteSeg = (i) => {
+      if (segments.length <= 1) {
+        alert("⚠️ 至少需保留 1 句段落！");
+        return;
+      }
+      segments.splice(i, 1);
       renderList();
     };
 
     // 2. 回音法核心訓練排程
     btnStart.onclick = async () => {
+      const activeSegs = segments.filter(s => s.selected !== false);
+      if (activeSegs.length === 0) {
+        alert("⚠️ 請至少勾選 1 句段落進行練習！");
+        return;
+      }
       isTraining = true;
       currentIdx = 0;
       currentLoop = 1;
@@ -440,8 +553,12 @@
     }
 
     async function runEchoLoop() {
+      while (currentIdx < segments.length && segments[currentIdx].selected === false) {
+        currentIdx++;
+      }
+
       if (!isTraining || currentIdx >= segments.length) {
-        statusText.innerText = "🎉 整課日文特訓完成！功力大增！";
+        statusText.innerText = "🎉 已完成所有已勾選句子的日文特訓！功力大增！";
         btnStop.click();
         return;
       }
@@ -559,6 +676,8 @@
         renderList();
         alert("🎉 日文字卡 JSON 匯入成功！");
       };
+      reader.readAsText(file);
+    };
     // 6. 雲端音檔網址讀取 (Google Drive / Dropbox / 直連網址)
     const parseGoogleDriveId = (url) => {
       const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
