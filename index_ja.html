@@ -203,7 +203,7 @@
           </div>
         </div>
 
-        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
           <select id="repeatSelect" class="select-custom" style="flex: 1 1 180px; padding: 12px; font-size: 0.92rem;">
             <option value="1">單句練 1 次即跳下一句</option>
             <option value="2">單句重複練 2 次</option>
@@ -214,6 +214,14 @@
             <option value="1.0" selected>1.0x (標準速度)</option>
             <option value="1.25">1.25x (快速挑戰)</option>
           </select>
+        </div>
+
+        <!-- 全新：自動對比播放控制項 -->
+        <div style="margin-bottom: 16px; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid var(--bg-card-border); display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <label for="autoCompareCheck" style="font-size: 0.88rem; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 8px;">
+            <input type="checkbox" id="autoCompareCheck" checked style="width: 20px; height: 20px; cursor: pointer; accent-color: #f59e0b;">
+            <span>⚡ 模仿結束後自動播放對比 (原音 ➔ 您的錄音)</span>
+          </label>
         </div>
 
         <button id="btnStart" class="btn-primary-glow" style="width: 100%; justify-content: center; background: linear-gradient(135deg, #e11d48, #f43f5e);" disabled>
@@ -611,6 +619,34 @@
             }
             comparePanel.style.display = "flex";
 
+            const autoCompare = document.getElementById('autoCompareCheck').checked;
+            let step4WaitTime = 4500;
+
+            if (autoCompare) {
+              statusText.innerText = "⚡ 自動播放對比中：(🎧 原音 ➔ 🎙️ 您的錄音)";
+              statusSub.innerText = "細心聽原音與自己錄音的音調起伏 (Pitch Accent) 差異";
+
+              // 播放原音
+              player.currentTime = seg.start;
+              player.playbackRate = parseFloat(document.getElementById('speedSelectJa').value) || 1.0;
+              player.play();
+              const origDur = ((seg.end - seg.start) / player.playbackRate) * 1000;
+
+              // 原音結束後 400ms 播放自錄音
+              setTimeout(() => {
+                if (!isTraining) return;
+                player.pause();
+                statusText.innerText = "🎙️ 播放您的模仿錄音中...";
+                setTimeout(() => {
+                  if (!isTraining) return;
+                  selfPlayer.play();
+                }, 400);
+              }, origDur);
+
+              // 計算總所需留白時間：原音時長 + 400ms 停頓 + 錄音播放 + 1.5s 留白
+              step4WaitTime = Math.max(5000, origDur + 400 + origDur + 1500);
+            }
+
             // 下一輪或下一句排程
             setTimeout(() => {
               if (!isTraining) return;
@@ -621,7 +657,7 @@
                 currentIdx++;
               }
               runEchoLoop();
-            }, 4500); // 留 4.5 秒供查看文字與自選比對
+            }, step4WaitTime);
           }, mimicTime);
         }, 2000);
       }, duration);
