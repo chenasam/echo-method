@@ -1,258 +1,392 @@
 /**
- * 回音法 (Echo Method) 音訊引擎與 4 步驟流程自動化控制
+ * Audio Engine: Web Audio API & MediaRecorder Integration
+ * Handles audio decoding, waveform extraction, adaptive silence detection,
+ * cross-platform microphone recording, and dual-track comparison playback.
  */
 
-export class AudioEngine {
+class AudioEngine {
   constructor() {
-    this.synth = window.speechSynthesis;
-    this.voices = [];
-    this.selectedVoice = null;
-    
-    // Audio Context & Visualizer Nodes
     this.audioCtx = null;
-    this.analyser = null;
-    this.dataArray = null;
-    this.animFrameId = null;
+    this.audioBuffer = null;
+    this.audioSourceNode = null;
+    this.mediaRecorder = null;
+    this.recordedChunks = [];
+    this.userVoiceBlob = null;
+    this.userVoiceUrl = null;
+    this.micStream = null;
+    this.micAnalyser = null;
+    this.meterAnimationId = null;
 
-    // Callbacks
-    this.onWorkflowStateChange = null;
-    this.onTimerTick = null;
+    // Playback state
+    this.isPlaying = false;
+    this.playbackRate = 1.0;
 
-    this.initVoices();
+    // HTML5 Audio element for background/mobile compatibility
+    this.nativeAudio = new Audio();
+    this.selfAudio = new Audio();
+
+    // Silence detection default settings
+    this.settings = {
+      silenceThreshold: 0.015,
+      minSilenceSec: 0.55,
+      minSpeechSec: 0.6,
+      echoWaitSec: 2.0
+    };
   }
 
-  initVoices() {
-    const load = () => {
-      this.voices = this.synth.getVoices();
-      this.updateVoiceForLang(this.currentLang || 'en-US');
+  /**
+   * Unlock AudioContext on user gesture (crucial for iOS Safari)
+   */
+  async ensureAudioContext() {
+    if (!this.audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      this.audioCtx = new AudioCtxClass();
+    }
+    if (this.audioCtx.state === 'suspended') {
+      await this.audioCtx.resume();
+    }
+    return this.audioCtx;
+  }
+
+  /**
+   * Decode an audio File or ArrayBuffer
+   */
+  async loadAudioFile(file) {
+    await this.ensureAudioContext();
+    const arrayBuffer = await file.arrayBuffer();
+    this.audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+    // Setup native audio source for smooth seeking
+    if (this.nativeAudio.src && this.nativeAudio.src.startsWith('blob:')) {
+      URL.revokeObjectURL(this.nativeAudio.src);
+    }
+    this.nativeAudio.src = URL.createObjectURL(file);
+    return this.audioBuffer;
+  }
+
+  /**
+   * Decode audio directly from a URL (e.g. built-in demo)
+   */
+  async loadAudioFromUrl(url) {
+    await this.ensureAudioContext();
+    const resp = await fetch(url);
+    const arrayBuffer = await resp.arrayBuffer();
+    this.audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+    if (this.nativeAudio.src && this.nativeAudio.src.startsWith('blob:')) {
+      URL.revokeObjectURL(this.nativeAudio.src);
+    }
+    this.nativeAudio.src = url;
+    return this.audioBuffer;
+  }
+
+  /**
+   * Adaptive Silence & Energy Detection for Auto-Segmentation
+   * Scans amplitude envelope and detects pauses
+   */
+  detectSegments(customThreshold, customMinSilence) {
+    if (!this.audioBuffer) return [];
+
+    const threshold = customThreshold !== undefined ? customThreshold : this.settings.silenceThreshold;
+    const minSilence = customMinSilence !== undefined ? customMinSilence : this.settings.minSilenceSec;
+    const minSpeech = this.settings.minSpeechSec;
+
+    const data = this.audioBuffer.getChannelData(0);
+    const sampleRate = this.audioBuffer.sampleRate;
+    const duration = this.audioBuffer.duration;
+    const step = 0.04; // 40ms analysis window
+
+    let inSpeech = false;
+    let start = 0;
+    let silenceDuration = 0;
+    const rawSegments = [];
+
+    for (let t = 0; t < duration; t += step) {
+      let sum = 0;
+      let count = 0;
+      const startIdx = Math.floor(t * sampleRate);
+      const endIdx = Math.min(Math.floor((t + step) * sampleRate), data.length);
+
+      for (let i = startIdx; i < endIdx; i++) {
+        sum += Math.abs(data[i]);
+        count++;
+      }
+      const amp = count ? sum / count : 0;
+
+      if (amp > threshold) {
+        if (!inSpeech) {
+          inSpeech = true;
+          start = Math.max(0, t - 0.08); // Slight pre-roll
+        }
+        silenceDuration = 0;
+      } else {
+        if (inSpeech) {
+          silenceDuration += step;
+          if (silenceDuration >= minSilence) {
+            inSpeech = false;
+            let end = t - silenceDuration + 0.15; // Small post-roll
+            if (end - start >= minSpeech) {
+              rawSegments.push({
+                start: parseFloat(start.toFixed(2)),
+                end: parseFloat(Math.min(duration, end).toFixed(2)),
+                jp: '',
+                zh: ''
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Capture tail if speech continues to end of file
+    if (inSpeech && duration - start >= minSpeech) {
+      rawSegments.push({
+        start: parseFloat(start.toFixed(2)),
+        end: parseFloat(duration.toFixed(2)),
+        jp: '',
+        zh: ''
+      });
+    }
+
+    return rawSegments;
+  }
+
+  /**
+   * Get downsampled waveform peaks for HTML5 Canvas rendering
+   */
+  getWaveformPeaks(targetPoints = 800) {
+    if (!this.audioBuffer) return [];
+    const rawData = this.audioBuffer.getChannelData(0);
+    const step = Math.floor(rawData.length / targetPoints);
+    const peaks = [];
+
+    for (let i = 0; i < targetPoints; i++) {
+      let min = 1.0;
+      let max = -1.0;
+      const start = i * step;
+      const end = Math.min(start + step, rawData.length);
+
+      for (let j = start; j < end; j++) {
+        const val = rawData[j];
+        if (val < min) min = val;
+        if (val > max) max = val;
+      }
+      peaks.push({ min, max });
+    }
+    return peaks;
+  }
+
+  /**
+   * Play specific slice of the original audio
+   */
+  playSegment(start, end, rate = 1.0, onProgress = null, onEnded = null) {
+    this.stopPlayback();
+    this.isPlaying = true;
+    this.playbackRate = rate;
+
+    this.nativeAudio.playbackRate = rate;
+    this.nativeAudio.currentTime = Math.max(0, start);
+
+    let checkInterval = null;
+
+    const cleanup = () => {
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
+      }
+      this.nativeAudio.removeEventListener('ended', handleEnded);
+      this.nativeAudio.removeEventListener('pause', handlePause);
     };
 
-    load();
-    if (speechSynthesis.onvoiceschanged !== undefined) {
-      speechSynthesis.onvoiceschanged = load;
-    }
-  }
+    const handleEnded = () => {
+      cleanup();
+      this.isPlaying = false;
+      if (onEnded) onEnded();
+    };
 
-  setLanguage(lang) {
-    this.currentLang = lang;
-    this.updateVoiceForLang(lang);
-  }
+    const handlePause = () => {
+      if (this.nativeAudio.currentTime >= end - 0.05) {
+        cleanup();
+        this.isPlaying = false;
+        if (onEnded) onEnded();
+      }
+    };
 
-  updateVoiceForLang(lang) {
-    if (!this.voices || this.voices.length === 0) {
-      this.voices = this.synth.getVoices();
-    }
-    if (lang.startsWith('ja')) {
-      this.selectedVoice = this.voices.find(v => v.lang.includes('ja') || v.lang.includes('JP')) 
-        || this.voices.find(v => v.name.includes('Kyoko') || v.name.includes('Otoya') || v.name.includes('Japanese'))
-        || this.voices[0];
-    } else {
-      this.selectedVoice = this.voices.find(v => v.lang.includes('en-US') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('Alex'))) 
-        || this.voices.find(v => v.lang.startsWith('en')) 
-        || this.voices[0];
-    }
-  }
+    this.nativeAudio.addEventListener('ended', handleEnded);
+    this.nativeAudio.addEventListener('pause', handlePause);
 
-  /**
-   * 載入自訂音檔 (MP3, WAV, M4A, OGG)
-   */
-  loadCustomAudioFile(file) {
-    if (this.customAudioUrl) {
-      URL.revokeObjectURL(this.customAudioUrl);
-    }
-    this.customAudioUrl = URL.createObjectURL(file);
-    this.customAudioElement = new Audio(this.customAudioUrl);
-    return this.customAudioElement;
-  }
-
-  /**
-   * 播放音檔指定時間區段 [startTimeSec ~ endTimeSec]
-   */
-  playAudioSegment(startTimeSec = 0, endTimeSec = null, rate = 1.0) {
-    return new Promise((resolve) => {
-      if (!this.customAudioElement) {
-        resolve();
+    checkInterval = setInterval(() => {
+      if (!this.isPlaying) {
+        cleanup();
         return;
       }
+      const cur = this.nativeAudio.currentTime;
+      if (onProgress) {
+        onProgress(cur);
+      }
+      if (cur >= end) {
+        this.nativeAudio.pause();
+        cleanup();
+        this.isPlaying = false;
+        if (onEnded) onEnded();
+      }
+    }, 25);
 
-      this.stopSpeech();
-      this.customAudioElement.playbackRate = rate;
-      this.customAudioElement.currentTime = startTimeSec;
-
-      const duration = endTimeSec ? (endTimeSec - startTimeSec) : (this.customAudioElement.duration - startTimeSec);
-      const scaledDurationMs = (duration / rate) * 1000;
-
-      const onTimeUpdate = () => {
-        if (endTimeSec && this.customAudioElement.currentTime >= endTimeSec) {
-          this.customAudioElement.pause();
-          this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
-          resolve();
-        }
-      };
-
-      this.customAudioElement.addEventListener('timeupdate', onTimeUpdate);
-
-      this.customAudioElement.onended = () => {
-        this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
-        resolve();
-      };
-
-      this.customAudioElement.play().catch(() => resolve());
-
-      // 備用定時器防呆
-      setTimeout(() => {
-        if (!this.customAudioElement.paused && endTimeSec && this.customAudioElement.currentTime >= endTimeSec) {
-          this.customAudioElement.pause();
-          this.customAudioElement.removeEventListener('timeupdate', onTimeUpdate);
-          resolve();
-        }
-      }, scaledDurationMs + 300);
+    this.nativeAudio.play().catch(e => {
+      console.warn('Playback interrupted or blocked:', e);
+      cleanup();
+      this.isPlaying = false;
+      if (onEnded) onEnded();
     });
   }
 
-  /**
-   * 自動將長音檔切分成 3~5 秒的迴音分句區段清單
-   */
-  generateAudioSegments(segmentLengthSec = 4.0) {
-    if (!this.customAudioElement || !this.customAudioElement.duration) return [];
-    const totalDuration = this.customAudioElement.duration;
-    const segments = [];
-    let start = 0;
-    let index = 1;
+  stopPlayback() {
+    this.isPlaying = false;
+    try {
+      this.nativeAudio.pause();
+    } catch (e) {}
+    try {
+      this.selfAudio.pause();
+    } catch (e) {}
+  }
 
-    while (start < totalDuration) {
-      const end = Math.min(totalDuration, start + segmentLengthSec);
-      segments.push({
-        id: `seg-${index}`,
-        label: `分句 ${index} (${start.toFixed(1)}s ~ ${end.toFixed(1)}s)`,
-        start: parseFloat(start.toFixed(1)),
-        end: parseFloat(end.toFixed(1))
+  /**
+   * Initialize Microphone with cross-platform MediaRecorder MIME type
+   */
+  async setupMic() {
+    if (this.micStream) return true;
+    try {
+      this.micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
-      start = end;
-      index++;
-    }
 
-    return segments;
-  }
+      // Connect to Web Audio Analyser for volume metering
+      await this.ensureAudioContext();
+      const source = this.audioCtx.createMediaStreamSource(this.micStream);
+      this.micAnalyser = this.audioCtx.createAnalyser();
+      this.micAnalyser.fftSize = 256;
+      source.connect(this.micAnalyser);
 
-  stopCustomAudio() {
-    if (this.customAudioElement) {
-      this.customAudioElement.pause();
-      this.customAudioElement.currentTime = 0;
+      return true;
+    } catch (err) {
+      console.error('Microphone permission denied or unavailable:', err);
+      return false;
     }
   }
 
   /**
-   * 使用 Web Speech Synthesis 發音朗讀句子
-   * @param {string} text 英文句子
-   * @param {number} rate 播放速率 (0.5 - 1.5)
-   * @returns {Promise<number>} 朗讀歷時毫秒數
+   * Start recording user voice
    */
-  speakText(text, rate = 1.0) {
-    return new Promise((resolve) => {
-      this.synth.cancel(); // 停止目前所有朗讀
+  startRecording(onMeterUpdate = null) {
+    if (!this.micStream) return false;
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = rate;
-      utterance.pitch = 1.0;
-      if (this.selectedVoice) {
-        utterance.voice = this.selectedVoice;
-      }
-
-      const startTime = performance.now();
-
-      utterance.onend = () => {
-        const durationMs = Math.max(1500, performance.now() - startTime);
-        resolve(durationMs);
-      };
-
-      utterance.onerror = () => {
-        resolve(2000);
-      };
-
-      this.synth.speak(utterance);
-    });
-  }
-
-  stopSpeech() {
-    this.synth.cancel();
-  }
-
-  /**
-   * 繪製動態繪畫 / 音波 / 心裡迴音脈衝動畫
-   */
-  startWaveformVisualizer(canvas, mode = 'idle') {
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
-
-    let phase = 0;
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      if (mode === 'listen' || mode === 'record') {
-        // 動態聲波
-        ctx.lineWidth = 3;
-        ctx.strokeStyle = mode === 'listen' ? '#8b5cf6' : '#ef4444';
-        ctx.shadowColor = mode === 'listen' ? '#a78bfa' : '#f87171';
-        ctx.shadowBlur = 12;
-
-        ctx.beginPath();
-        const sliceWidth = width / 60;
-        let x = 0;
-
-        for (let i = 0; i < 60; i++) {
-          const v = Math.sin(i * 0.2 + phase) * (mode === 'listen' ? 18 : 28) + (Math.random() * 6);
-          const y = height / 2 + v;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-          x += sliceWidth;
-        }
-        ctx.stroke();
-        phase += 0.15;
-      } else if (mode === 'echo') {
-        // 心裡迴音脈衝波紋 (Mental Echo Pulse Animation)
-        ctx.save();
-        ctx.translate(width / 2, height / 2);
-        const radius = (Math.sin(phase) * 0.3 + 0.7) * (height / 2.8);
-        
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(6, 182, 212, 0.15)';
-        ctx.fill();
-
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = '#06b6d4';
-        ctx.shadowColor = '#67e8f9';
-        ctx.shadowBlur = 16;
-        ctx.stroke();
-
-        ctx.restore();
-        phase += 0.08;
+    this.recordedChunks = [];
+    let mimeType = 'audio/webm;codecs=opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) {
+      if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+        mimeType = 'audio/mp4'; // iOS Safari
       } else {
-        // 靜止狀態 - 質感基準線
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-        ctx.shadowBlur = 0;
-        ctx.beginPath();
-        ctx.moveTo(0, height / 2);
-        ctx.lineTo(width, height / 2);
-        ctx.stroke();
+        mimeType = '';
       }
+    }
 
-      this.animFrameId = requestAnimationFrame(render);
+    const options = mimeType ? { mimeType } : {};
+    try {
+      this.mediaRecorder = new MediaRecorder(this.micStream, options);
+    } catch (e) {
+      this.mediaRecorder = new MediaRecorder(this.micStream);
+    }
+
+    this.mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        this.recordedChunks.push(e.data);
+      }
     };
 
-    if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
-    render();
+    this.mediaRecorder.onstop = () => {
+      const type = this.mediaRecorder.mimeType || 'audio/webm';
+      this.userVoiceBlob = new Blob(this.recordedChunks, { type });
+      if (this.userVoiceUrl) {
+        URL.revokeObjectURL(this.userVoiceUrl);
+      }
+      this.userVoiceUrl = URL.createObjectURL(this.userVoiceBlob);
+      this.selfAudio.src = this.userVoiceUrl;
+    };
+
+    this.mediaRecorder.start(100);
+
+    // Start Metering loop
+    if (this.micAnalyser && onMeterUpdate) {
+      const dataArray = new Uint8Array(this.micAnalyser.frequencyBinCount);
+      const updateMeter = () => {
+        if (!this.mediaRecorder || this.mediaRecorder.state !== 'recording') return;
+        this.micAnalyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        const normalized = Math.min(100, Math.round((avg / 128) * 100));
+        onMeterUpdate(normalized);
+        this.meterAnimationId = requestAnimationFrame(updateMeter);
+      };
+      updateMeter();
+    }
+
+    return true;
   }
 
-  stopVisualizer() {
-    if (this.animFrameId) {
-      cancelAnimationFrame(this.animFrameId);
-      this.animFrameId = null;
+  /**
+   * Stop recording
+   */
+  stopRecording() {
+    if (this.meterAnimationId) {
+      cancelAnimationFrame(this.meterAnimationId);
+      this.meterAnimationId = null;
+    }
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
     }
   }
+
+  /**
+   * Play user's recorded voice
+   */
+  playSelfVoice(onEnded = null) {
+    if (!this.userVoiceUrl) return;
+    this.stopPlayback();
+    this.selfAudio.currentTime = 0;
+    this.selfAudio.onended = () => {
+      if (onEnded) onEnded();
+    };
+    this.selfAudio.play().catch(e => console.warn('Self audio playback error', e));
+  }
+
+  /**
+   * Dual Sequential Playback: "Original -> Pause 350ms -> User Voice"
+   */
+  playCompareSequence(start, end, rate = 1.0, onStep = null, onFinish = null) {
+    if (onStep) onStep('origin');
+    this.playSegment(start, end, rate, null, () => {
+      if (onStep) onStep('gap');
+      setTimeout(() => {
+        if (this.userVoiceUrl) {
+          if (onStep) onStep('self');
+          this.playSelfVoice(() => {
+            if (onFinish) onFinish();
+          });
+        } else {
+          if (onFinish) onFinish();
+        }
+      }, 350);
+    });
+  }
 }
+
+window.AudioEngine = AudioEngine;

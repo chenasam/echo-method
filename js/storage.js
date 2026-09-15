@@ -1,105 +1,140 @@
 /**
- * 回音法 (Echo Method) 學習進度與 LocalStorage 資料管理
+ * Storage & Data Export/Import Module
+ * Supports LocalStorage auto-save, JSON import/export compatible with manual,
+ * and Anki Deck TSV export for spaced-repetition flashcards.
  */
 
-const STORAGE_KEYS = {
-  STREAK: 'echo_streak_data',
-  HISTORY: 'echo_practice_history',
-  SETTINGS: 'echo_user_settings'
-};
+const StorageManager = {
+  getStorageKey(filename) {
+    return `echo_trainer_project_${filename || 'default'}`;
+  },
 
-export const StorageManager = {
-  // 取得學習紀錄與連勝天數
-  getStreakData() {
-    const defaultData = {
-      currentStreak: 1,
-      totalPracticedCount: 0,
-      totalDurationMinutes: 0,
-      lastPracticedDate: null,
-      completedLessonIds: []
-    };
+  /**
+   * Save current project segments & metadata to LocalStorage
+   */
+  saveProject(filename, segments, settings = {}) {
+    if (!filename) return false;
     try {
-      const data = localStorage.getItem(STORAGE_KEYS.STREAK);
-      return data ? JSON.parse(data) : defaultData;
+      const data = {
+        filename,
+        updatedAt: new Date().toISOString(),
+        segments,
+        settings
+      };
+      localStorage.setItem(this.getStorageKey(filename), JSON.stringify(data));
+      return true;
     } catch (e) {
-      console.warn('LocalStorage error:', e);
-      return defaultData;
+      console.warn('LocalStorage save failed:', e);
+      return false;
     }
   },
 
-  // 紀錄一次完成的迴音練習
-  recordPractice(lessonId, rating, userAudioBlob = null) {
-    const streakData = this.getStreakData();
-    const today = new Date().toISOString().split('T')[0];
+  /**
+   * Load saved project data by filename
+   */
+  loadProject(filename) {
+    if (!filename) return null;
+    try {
+      const raw = localStorage.getItem(this.getStorageKey(filename));
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      console.warn('LocalStorage load failed:', e);
+      return null;
+    }
+  },
 
-    // 更新連勝與次數
-    if (streakData.lastPracticedDate !== today) {
-      if (streakData.lastPracticedDate) {
-        const last = new Date(streakData.lastPracticedDate);
-        const curr = new Date(today);
-        const diffDays = Math.round((curr - last) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) {
-          streakData.currentStreak += 1;
-        } else if (diffDays > 1) {
-          streakData.currentStreak = 1;
+  /**
+   * Export segments as JSON (100% compatible with the PDF manual specification)
+   */
+  exportJson(filename, segments) {
+    if (!segments || !segments.length) {
+      alert('目前沒有段落可匯出');
+      return;
+    }
+
+    const cleanSegments = segments.map(seg => ({
+      start: parseFloat(seg.start.toFixed(2)),
+      end: parseFloat(seg.end.toFixed(2)),
+      jp: seg.jp || '',
+      zh: seg.zh || '',
+      enabled: seg.enabled !== false
+    }));
+
+    const jsonStr = JSON.stringify(cleanSegments, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
+    a.download = `${baseName}_回音字卡.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  /**
+   * Import JSON and parse segments
+   */
+  async importJsonFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (Array.isArray(parsed)) {
+            const validated = parsed.map(item => ({
+              start: Number(item.start) || 0,
+              end: Number(item.end) || 0,
+              jp: item.jp || '',
+              zh: item.zh || '',
+              enabled: item.enabled !== false
+            }));
+            resolve(validated);
+          } else {
+            reject(new Error('JSON 格式不符：需為段落陣列'));
+          }
+        } catch (err) {
+          reject(err);
         }
-      }
-      streakData.lastPracticedDate = today;
+      };
+      reader.onerror = reject;
+      reader.readAsText(file);
+    });
+  },
+
+  /**
+   * Export to Anki Flashcards (Tab-separated values)
+   * Front: Japanese with HTML Ruby
+   * Back: Chinese translation + Audio Time Range
+   */
+  exportAnkiTsv(filename, segments) {
+    if (!segments || !segments.length) {
+      alert('目前沒有段落可匯出');
+      return;
     }
 
-    streakData.totalPracticedCount += 1;
-    if (!streakData.completedLessonIds.includes(lessonId)) {
-      streakData.completedLessonIds.push(lessonId);
-    }
-
-    localStorage.setItem(STORAGE_KEYS.STREAK, JSON.stringify(streakData));
-
-    // 寫入詳細練習歷史
-    this.addHistoryLog({
-      id: 'h-' + Date.now(),
-      lessonId,
-      timestamp: new Date().toISOString(),
-      rating: rating || 4,
-      dateStr: new Date().toLocaleDateString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    const rows = segments.map((seg, idx) => {
+      const front = FuriganaParser.toRubyHtml(seg.jp || `第 ${idx + 1} 句`);
+      const back = `${seg.zh || ''}<br><small style="color:#64748b">(${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s)</small>`;
+      // TSV format: Front \t Back
+      return `"${front.replace(/"/g, '""')}"\t"${back.replace(/"/g, '""')}"`;
     });
 
-    return streakData;
-  },
+    const tsvContent = rows.join('\n');
+    const blob = new Blob([tsvContent], { type: 'text/tab-separated-values;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
 
-  getHistoryLogs() {
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.HISTORY);
-      return data ? JSON.parse(data) : [];
-    } catch (e) {
-      return [];
-    }
-  },
-
-  addHistoryLog(logItem) {
-    const history = this.getHistoryLogs();
-    history.unshift(logItem);
-    // 保持最多 50 筆紀錄
-    if (history.length > 50) history.pop();
-    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(history));
-  },
-
-  getSettings() {
-    const defaultSettings = {
-      echoPauseMultiplier: 1.0, // 留白時間倍率 (預設為音訊長度之 1 倍)
-      autoRecord: true,         // 心裡迴音結束後自動開啟麥克風錄音
-      showSubtitles: false,     // 預設遮罩/隱藏字幕，考驗聽力
-      playbackRate: 1.0,        // 播放速度
-      voiceLang: 'en-US'        // 語音語言
-    };
-    try {
-      const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      return data ? { ...defaultSettings, ...JSON.parse(data) } : defaultSettings;
-    } catch (e) {
-      return defaultSettings;
-    }
-  },
-
-  saveSettings(settings) {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
+    a.download = `${baseName}_Anki卡片.tsv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 };
+
+window.StorageManager = StorageManager;

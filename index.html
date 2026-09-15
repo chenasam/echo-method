@@ -2,332 +2,353 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>回音法 (Echo Method) - 史嘉琳教授口音特訓神器 | 4步驟高效率語言學習 Web App</title>
-  <meta name="description" content="基於史嘉琳教授「回音法 (Echo Method)」理論開發的互動式語言學習 Web 應用程式。透過仔細聽、心裡留白迴音、大聲模仿與錄音雙軌比對，大幅提升英文口音、連音與自然語調。">
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0b0f19">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="日語回音法（Echo Method）自主訓練工具 - 實踐台大史嘉琳教授「聽、停、摹、查、比」核心五步驟，具備智慧音波斷句、自動錄音對比與振假名支援。">
+  <title>日語回音法自主訓練工具 ｜ Echo Method Trainer</title>
+
+  <!-- Google Fonts: Outfit & Noto Sans JP -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
-
-  <!-- SVG Icons Definitions -->
-  <svg style="display: none;">
-    <symbol id="icon-wave" viewBox="0 0 24 24">
-      <path d="M2 12h2a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v10a2 2 0 0 0 4 0V5a2 2 0 0 1 4 0v10a2 2 0 0 0 2 2h2"/>
-    </symbol>
-    <symbol id="icon-play" viewBox="0 0 24 24">
-      <polygon points="5 3 19 12 5 21 5 3"/>
-    </symbol>
-    <symbol id="icon-mic" viewBox="0 0 24 24">
-      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-      <line x1="12" y1="19" x2="12" y2="22"/>
-    </symbol>
-    <symbol id="icon-eye" viewBox="0 0 24 24">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-      <circle cx="12" cy="12" r="3"/>
-    </symbol>
-    <symbol id="icon-eye-off" viewBox="0 0 24 24">
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </symbol>
-    <symbol id="icon-plus" viewBox="0 0 24 24">
-      <line x1="12" y1="5" x2="12" y2="19"/>
-      <line x1="5" y1="12" x2="19" y2="12"/>
-    </symbol>
-    <symbol id="icon-history" viewBox="0 0 24 24">
-      <polyline points="12 8 12 12 14 14"/>
-      <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
-    </symbol>
-  </svg>
-
-  <div class="app-container">
-    
-    <!-- Navbar Header -->
+  <div class="app-wrapper">
+    <!-- Header -->
     <header class="app-header">
-      <div class="logo-group">
-        <div class="logo-icon">
-          <svg class="icon" style="width: 24px; height: 24px; color: white;"><use href="#icon-wave"/></svg>
-        </div>
-        <div>
-          <h1 class="logo-title">Echo Method 回音法</h1>
-          <p style="font-size: 0.78rem; color: var(--text-muted);">史嘉琳教授 4 步驟口音特訓神器</p>
+      <div class="brand">
+        <div class="brand-icon">🎙️</div>
+        <div class="brand-title">
+          <h1>日語回音法練習器 <span style="font-size: 11px; background: rgba(244,63,94,0.15); color: #fb7185; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(244,63,94,0.3); font-weight: normal; margin-left: 4px;">PRO 旗艦版</span></h1>
+          <div class="subtitle">台大史嘉琳教授 Echo Method「聽 ➔ 停 ➔ 摹 ➔ 查 ➔ 比」自主訓練</div>
         </div>
       </div>
-
-      <div class="header-stats">
-        <!-- Language Switcher Buttons -->
-        <div style="display: flex; gap: 4px; background: rgba(255,255,255,0.05); padding: 4px; border-radius: var(--radius-full); border: 1px solid var(--bg-card-border);">
-          <a href="index.html" class="btn-secondary active" style="background: var(--accent-purple); color: white; border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇬🇧 English 英文版</a>
-          <a href="index_ja.html" class="btn-secondary" style="border: none; padding: 6px 14px; text-decoration: none; font-size: 0.85rem;">🇯🇵 日本語 日文版</a>
-        </div>
-
-        <div class="stat-badge">
-          <span class="stat-label">🔥 連續練習</span>
-          <span class="stat-value" id="stat-streak">0 天</span>
-        </div>
-        <div class="stat-badge">
-          <span class="stat-label">🎯 已解鎖句子</span>
-          <span class="stat-value" id="stat-count">0 句</span>
-        </div>
-        <button class="btn-secondary" id="btn-history">
-          <svg class="icon"><use href="#icon-history"/></svg>
-          練習紀錄
+      <div class="header-actions">
+        <label for="jsonFileInput" class="btn btn-secondary btn-sm" title="匯入已標註字卡 (JSON)" style="cursor: pointer;">
+          📥 匯入字卡
+        </label>
+        <button id="btnExportJson" class="btn btn-secondary btn-sm" title="匯出當前段落字卡 (JSON)">
+          📤 匯出字卡
+        </button>
+        <button id="btnExportAnki" class="btn btn-secondary btn-sm" title="匯出為 Anki 單字卡 TSV 格式">
+          📇 Anki 匯出
         </button>
       </div>
     </header>
 
-    <main>
-      <!-- Echo Method Trainer Core Card -->
-      <section class="trainer-card" id="trainer-hub">
-        
-        <!-- 4-Step Workflow Badges Bar -->
-        <div class="workflow-steps-bar">
-          <div class="step-badge" id="step-1">
-            <div class="step-num">1</div>
-            <div class="step-info">
-              <div class="step-title">Listen 仔細聽</div>
-              <div class="step-desc">母語原音朗讀</div>
-            </div>
-          </div>
+    <!-- Hidden file inputs -->
+    <input type="file" id="audioFileInput" accept="audio/*" style="display: none;">
+    <input type="file" id="jsonFileInput" accept=".json" style="display: none;">
 
-          <div class="step-badge" id="step-2">
-            <div class="step-num">2</div>
-            <div class="step-info">
-              <div class="step-title">Echo 心裡迴音</div>
-              <div class="step-desc">留白腦海重播</div>
-            </div>
-          </div>
+    <!-- Audio File Control Bar -->
+    <section class="glass-card">
+      <div class="file-bar">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btnSelectAudio" class="btn btn-primary">
+            📂 選擇日語 MP3 音檔
+          </button>
+          <button id="btnLoadDemo" class="btn btn-secondary" title="直接載入內建示範音檔與字卡快速體驗">
+            🎧 載入展示範例 (Demo)
+          </button>
+        </div>
+        <div class="file-info">
+          <span class="file-badge">
+            <span id="audioFileName">尚未載入音檔</span>
+          </span>
+          <span class="file-badge" style="color: var(--text-muted);">
+            時長: <strong id="audioDuration" style="color: var(--text-primary); margin-left: 4px;">--:--</strong>
+          </span>
+        </div>
+      </div>
 
-          <div class="step-badge" id="step-3">
-            <div class="step-num">3</div>
-            <div class="step-info">
-              <div class="step-title">Speak 模仿錄音</div>
-              <div class="step-desc">開啟麥克風大聲唸</div>
-            </div>
+      <!-- Waveform Canvas Section -->
+      <div class="waveform-section">
+        <div class="waveform-header">
+          <span>📊 互動音波走勢與段落切點（點擊波形可定位跳轉）</span>
+          <span id="waveformStats" style="color: var(--text-muted);">Web Audio API 高精準取樣</span>
+        </div>
+        <div class="waveform-canvas-box">
+          <canvas id="waveformCanvas"></canvas>
+        </div>
+        <div class="waveform-controls">
+          <div class="slider-group" title="靜音能量閾值：若背景噪音多可稍微調高">
+            <span>靜音閾值:</span>
+            <input type="range" id="thresholdSlider" min="0.005" max="0.045" step="0.005" value="0.015">
+            <span id="thresholdValue">0.015</span>
           </div>
+          <div class="slider-group" title="最小停頓秒數：換氣停頓大於此數即判定斷句">
+            <span>換氣長度:</span>
+            <input type="range" id="minSilenceSlider" min="0.3" max="1.2" step="0.05" value="0.55">
+            <span id="minSilenceValue">0.55s</span>
+          </div>
+          <button id="btnRedetect" class="btn btn-ghost btn-sm" style="margin-left: auto;">
+            🔄 重新斷句
+          </button>
+        </div>
+      </div>
+    </section>
 
-          <div class="step-badge" id="step-4">
-            <div class="step-num">4</div>
-            <div class="step-info">
-              <div class="step-title">Compare 雙軌比對</div>
-              <div class="step-desc">對比語調與自評</div>
-            </div>
-          </div>
+    <!-- Training Settings Bar -->
+    <section class="settings-strip">
+      <div class="setting-item">
+        <span>單句重複:</span>
+        <select id="repeatSelect">
+          <option value="1">單句練 1 次即換</option>
+          <option value="2">單句重複練 2 次</option>
+          <option value="3" selected>單句重複練 3 次</option>
+          <option value="5">單句深度練 5 次</option>
+        </select>
+      </div>
+
+      <div class="setting-item">
+        <span>播放語速:</span>
+        <select id="speedSelect">
+          <option value="0.75">0.75x (慢速分析)</option>
+          <option value="0.85">0.85x (細緻音高)</option>
+          <option value="1.0" selected>1.0x (母語常速)</option>
+          <option value="1.2">1.2x (挑戰挑戰)</option>
+        </select>
+      </div>
+
+      <div class="setting-item">
+        <span>回音留白:</span>
+        <select id="echoWaitSelect">
+          <option value="1.5">1.5 秒</option>
+          <option value="2.0" selected>2.0 秒 (標準黃金留白)</option>
+          <option value="2.5">2.5 秒</option>
+          <option value="3.0">3.0 秒 (充裕心像)</option>
+        </select>
+      </div>
+
+      <div class="setting-item" title="開口模仿錄音的時間倍率；若選擇手動結束，可自在練習說完按空白鍵 Space 完成">
+        <span>開口時長:</span>
+        <select id="mimicTimeSelect">
+          <option value="1.4">1.4x (常速緊湊)</option>
+          <option value="1.8" selected>1.8x (充裕推薦)</option>
+          <option value="2.5">2.5x (加倍放慢)</option>
+          <option value="manual">手動結束 (按 Space 鍵)</option>
+        </select>
+      </div>
+
+      <div class="setting-item" style="margin-left: auto;" title="開啟時對比完自動跳下一句；關閉時為自主步調，按空白鍵才前進">
+        <span>自動心流巡航:</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoFlowToggle" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Echo Method 5-Step Hero Dashboard -->
+    <section class="glass-card training-dashboard">
+      <!-- 5-Step Indicator -->
+      <div class="steps-indicator">
+        <div class="step-node" id="step1">
+          <div class="step-circle">1</div>
+          <span class="step-title">聽 (專注盲聽)</span>
+        </div>
+        <div class="step-node" id="step2">
+          <div class="step-circle">2</div>
+          <span class="step-title">停 (留白回音)</span>
+        </div>
+        <div class="step-node" id="step3">
+          <div class="step-circle">3</div>
+          <span class="step-title">摹 (開口模仿)</span>
+        </div>
+        <div class="step-node" id="step4">
+          <div class="step-circle">4</div>
+          <span class="step-title">查 (答案揭曉)</span>
+        </div>
+        <div class="step-node" id="step5">
+          <div class="step-circle">5</div>
+          <span class="step-title">比 (雙音對比)</span>
+        </div>
+      </div>
+
+      <!-- Echo Visual Hero Area -->
+      <div class="echo-hero">
+        <div class="timer-ring-box">
+          <svg class="timer-svg" viewBox="0 0 100 100">
+            <circle class="timer-bg-circle" cx="50" cy="50" r="45"></circle>
+            <circle id="timerSvgCircle" class="timer-fg-circle" cx="50" cy="50" r="45"></circle>
+          </svg>
+          <div id="timerCenterText" class="timer-center-text">--</div>
         </div>
 
-        <!-- Waveform Visualizer & Mental Echo Ring -->
-        <div class="visualizer-container">
-          <canvas id="waveform-canvas" width="800" height="120"></canvas>
-          <div class="echo-overlay">
-            <div class="echo-countdown" id="echo-countdown"></div>
-            <div class="echo-status-text" id="echo-status-text">準備就緒，點擊「開始一鍵迴音特訓」</div>
-          </div>
+        <div id="phaseTitle" class="phase-title">準備就緒</div>
+        <div id="phaseInstruction" class="phase-instruction">請先點擊上方載入音檔，系統將自動完成分句斷點</div>
+
+        <!-- Live Mic Meter during Step 3 -->
+        <div id="micMeterContainer" class="mic-meter-container">
+          <div id="micMeterBar" class="mic-meter-bar"></div>
         </div>
 
-        <!-- Audio Segment Trimmer Panel (音檔分句微調面板) -->
-        <div class="segment-panel" id="segment-panel" style="display: none; background: rgba(6, 182, 212, 0.06); border: 1px solid rgba(6, 182, 212, 0.2); border-radius: var(--radius-md); padding: 16px; margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <span style="font-weight: 600; font-size: 0.92rem; color: var(--accent-cyan);">✂️ 音檔分句剪輯微調 (Audio Segment Slicer)</span>
-            <span style="font-size: 0.8rem; color: var(--text-muted);" id="segment-info-text">點擊下方分句或手動設定時間</span>
-          </div>
+        <!-- Early finish button during mimic -->
+        <button id="btnFinishMimicEarly" class="btn btn-secondary btn-sm" style="display: none; margin-top: 10px;" title="說完可立即按 Space 或點擊此按鈕進入答案揭曉">
+          ✓ 我說完了（按空白鍵 Space 或點此完成）
+        </button>
 
-          <!-- Quick Segments List Chips -->
-          <div class="segments-list" id="segments-list" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
-            <!-- Dynamically populated chips -->
-          </div>
-
-          <!-- Manual Time Adjuster -->
-          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">開始時間:</span>
-              <button class="btn-secondary" id="btn-seg-start-minus" style="padding: 4px 8px; font-size: 0.78rem;">-0.5s</button>
-              <input type="number" step="0.1" id="seg-start-time" value="0.0" style="width: 70px; background: rgba(0,0,0,0.3); border: 1px solid var(--bg-card-border); color: white; border-radius: 4px; padding: 4px 8px; text-align: center;">
-              <button class="btn-secondary" id="btn-seg-start-plus" style="padding: 4px 8px; font-size: 0.78rem;">+0.5s</button>
-            </div>
-
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="font-size: 0.85rem; color: var(--text-secondary);">結束時間:</span>
-              <button class="btn-secondary" id="btn-seg-end-minus" style="padding: 4px 8px; font-size: 0.78rem;">-0.5s</button>
-              <input type="number" step="0.1" id="seg-end-time" value="4.0" style="width: 70px; background: rgba(0,0,0,0.3); border: 1px solid var(--bg-card-border); color: white; border-radius: 4px; padding: 4px 8px; text-align: center;">
-              <button class="btn-secondary" id="btn-seg-end-plus" style="padding: 4px 8px; font-size: 0.78rem;">+0.5s</button>
-            </div>
-
-            <button class="btn-secondary" id="btn-preview-segment" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">
-              ▶️ 試聽選取區段
-            </button>
-          </div>
+        <!-- Revealed Text during Step 4 -->
+        <div id="revealContainer" class="reveal-container">
+          <div id="revealJp" class="reveal-jp"></div>
+          <div id="revealZh" class="reveal-zh"></div>
         </div>
 
-        <!-- Sentence Display Card -->
-        <div class="sentence-box">
-          <div class="lesson-title-tag" id="lesson-title">What do you do? (連音特訓)</div>
-          
-          <div class="sentence-wrapper">
-            <div class="sentence-text" id="lesson-sentence">What do you do for a living?</div>
-            <div class="subtitle-mask" id="subtitle-mask">
-              <span>🙈 聽力遮罩防雷中（點擊下方按鈕或選單開啟字幕）</span>
-            </div>
-          </div>
-
-          <div class="sentence-ipa" id="lesson-ipa">/wʌt də juː duː fər ə ˈlɪvɪŋ/</div>
-          <div class="sentence-trans" id="lesson-translation">你是做什麼工作的？</div>
-          
-          <div class="sentence-tips" id="lesson-tips">
-            <strong>💡 迴音心法：</strong>What do you 經常弱讀並連音發成 /wʌdəjə/。
-          </div>
-
-          <div class="highlights-tags" id="lesson-highlights">
-            <!-- Highlights generated dynamically -->
-          </div>
+        <!-- Comparison Actions during Step 5 -->
+        <div id="compareActions" class="compare-actions">
+          <button id="btnPlayOrigin" class="btn btn-secondary">
+            🔊 聽原音 (1)
+          </button>
+          <button id="btnPlaySelf" class="btn btn-secondary">
+            🎙️ 聽我的發音 (2)
+          </button>
+          <button id="btnCompareAll" class="btn btn-compare-amber">
+            ⚡ 連續對比 (原音 ➔ 己音) (3)
+          </button>
         </div>
+      </div>
 
-        <!-- Controls Bar -->
-        <div class="controls-bar">
-          <div class="main-action-group">
-            <button class="btn-primary-glow" id="btn-start-workflow">
-              <svg class="icon" style="width: 22px; height: 22px;"><use href="#icon-play"/></svg>
-              開始 4 步驟迴音特訓
-            </button>
-
-            <button class="btn-secondary" id="btn-play-original">
-              <svg class="icon"><use href="#icon-play"/></svg>
-              單獨播放原音
-            </button>
-
-            <button class="btn-secondary" id="btn-toggle-record">
-              <svg class="icon"><use href="#icon-mic"/></svg>
-              <span>錄製模仿音</span>
-            </button>
-
-            <button class="btn-secondary" id="btn-play-recording" disabled>
-              <svg class="icon"><use href="#icon-play"/></svg>
-              播放我的錄音
-            </button>
-          </div>
-
-          <div class="options-group">
-            <button class="btn-secondary" id="btn-toggle-subtitles">
-              <svg class="icon"><use href="#icon-eye"/></svg>
-              顯示字幕 (揭露)
-            </button>
-
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <label class="btn-secondary" style="cursor: pointer;">
-                📁 選擇本機音檔 (MP3/WAV)
-                <input type="file" id="audio-file-input" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg,.flac,audio/mpeg,audio/mp3,audio/x-m4a" style="display: none;">
-              </label>
-
-              <button class="btn-secondary" id="btn-cloud-url" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">
-                ☁️ 載入雲端網址 (Google Drive)
-              </button>
-            </div>
-
-            <select class="select-custom" id="speed-selector">
-              <option value="0.75">0.75x (慢速拆解)</option>
-              <option value="1.0" selected>1.0x (標準速度)</option>
-              <option value="1.25">1.25x (快速挑戰)</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Rating Panel (Step 4) -->
-        <div class="rating-panel">
-          <div class="rating-title">🎯 評估剛才的迴音模仿比對：</div>
-          <div class="rating-buttons">
-            <button class="btn-rating" data-rating="1">1星 需要再聽</button>
-            <button class="btn-rating" data-rating="3">3星 語調相近</button>
-            <button class="btn-rating" data-rating="5">5星 完全契合！</button>
-          </div>
-        </div>
-
-      </section>
-
-      <!-- Lesson Library Section -->
-      <section>
-        <div class="section-header">
-          <h2 class="section-title">📚 回音法精選教材庫</h2>
-          <button class="btn-secondary" id="btn-custom-lesson">
-            <svg class="icon"><use href="#icon-plus"/></svg>
-            自訂句子 / 匯入文字
+      <!-- Training Controls Toolbar -->
+      <div class="training-toolbar">
+        <div style="display: flex; gap: 8px;">
+          <button id="btnPrevSeg" class="btn btn-secondary" title="上一句 (← 方向鍵左)">
+            ⏮ 上一句
+          </button>
+          <button id="btnRepeatSeg" class="btn btn-secondary" title="重練此句 (R鍵)">
+            🔁 重練此句
+          </button>
+          <button id="btnNextSeg" class="btn btn-secondary" title="下一句 (→ 方向鍵右)">
+            下一句 ⏭
           </button>
         </div>
 
-        <!-- Category Filters -->
-        <div class="category-filters" id="category-filters">
-          <button class="cat-chip active" data-cat="all">全部教材</button>
-          <button class="cat-chip" data-cat="linking">連音與變音特訓 (Linking)</button>
-          <button class="cat-chip" data-cat="intonation">自然語調起伏 (Intonation)</button>
-          <button class="cat-chip" data-cat="daily">生活高頻會話 (Daily)</button>
-          <button class="cat-chip" data-cat="business">商務溝通 (Business)</button>
+        <div class="loop-counter">
+          單句次數: <span id="loopDisplay" class="loop-badge">1 / 3</span>
         </div>
 
-        <!-- Lessons Cards Grid -->
-        <div class="lessons-grid" id="lessons-grid">
-          <!-- Dynamically populated -->
+        <div>
+          <button id="btnStartTraining" class="btn btn-primary" disabled>
+            ▶ 開始回音法訓練 (Space)
+          </button>
+          <button id="btnPauseTraining" class="btn btn-secondary" style="display: none;">
+            ⏸ 暫停訓練 (Space)
+          </button>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
+
+    <!-- Segments List Card -->
+    <section class="glass-card">
+      <div class="segment-list-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h3>📋 音訊段落與字卡清單</h3>
+          <span id="segCountBadge" class="file-badge">0 句</span>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="btnToggleAllSegs" class="btn btn-secondary btn-sm" title="全選或取消全選所有段落">
+            ☑️ 全選 / 全不選
+          </button>
+        </div>
+      </div>
+      <div id="segmentItemsList" class="segment-items">
+        <div style="text-align: center; color: var(--text-muted); padding: 30px 0;">
+          尚未載入音檔，載入後將自動列出每一句的開始時間、長度與標註文字。
+        </div>
+      </div>
+    </section>
   </div>
 
-  <!-- Cloud URL Modal -->
-  <div class="modal-overlay" id="modal-cloud">
-    <div class="modal-box">
+  <!-- Segment Edit Modal -->
+  <div id="editModal" class="modal-backdrop">
+    <div class="modal-dialog">
       <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">☁️ 載入雲端音檔網址</h3>
-        <button class="btn-icon-close" id="btn-close-cloud">&times;</button>
+        <h3 id="modalSegTitle">編輯段落文字與時間</h3>
+        <button id="btnCancelModal" class="btn btn-ghost btn-sm" style="font-size: 16px;">✕</button>
       </div>
-      <div class="form-group">
-        <label>貼上雲端音檔連結 (支援 Google Drive 分享連結、Dropbox 或 MP3 直連網址)</label>
-        <input type="text" class="form-input" id="cloud-url-input" placeholder="例如：https://drive.google.com/file/d/1ABC.../view">
-        <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 6px;">
-          💡 小撇步：若使用 Google Drive，請確保檔案已設為「知道連結的人皆可存取」。
-        </p>
+
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <label class="input-label" style="margin-bottom: 0;">日語原文 (支援智慧振假名語法)</label>
+          <button id="btnWrapRuby" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;">
+            🏷️ 選取字詞加假名 [ ]
+          </button>
+        </div>
+        <div class="input-tip">提示：輸入 <code>初[はじ]めまして</code> 或 <code>私(わたし)</code> 即可自動生成漢字上方振假名！</div>
+        <textarea id="editJpInput" class="form-control" rows="3" placeholder="例如：初[はじ]めまして、どうぞよろしくお願[ねが]いします。"></textarea>
+
+        <label class="input-label">振假名即時預覽：</label>
+        <div id="modalRubyPreview" class="modal-ruby-preview"></div>
       </div>
-      <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
-        <button id="btn-fetch-cloud" class="btn-primary-glow" style="padding: 10px 24px; background: linear-gradient(135deg, #06b6d4, #3b82f6);">讀取雲端音檔</button>
+
+      <div style="margin-bottom: 14px;">
+        <label class="input-label">中文翻譯與筆記</label>
+        <input type="text" id="editZhInput" class="form-control" placeholder="例如：初次見面，請多多指教。">
+      </div>
+
+      <!-- Precise Timing Nudge -->
+      <label class="input-label">時間區間精確微調 (±0.1秒)：</label>
+      <div class="timing-nudges">
+        <div class="nudge-group">
+          <div>開始時間: <strong id="modalStartTime" style="color: #38bdf8;">0.00s</strong></div>
+          <div class="nudge-buttons">
+            <button id="nudgeStartMinus" class="btn btn-secondary btn-sm" style="flex:1;">-0.1s</button>
+            <button id="nudgeStartPlus" class="btn btn-secondary btn-sm" style="flex:1;">+0.1s</button>
+          </div>
+        </div>
+        <div class="nudge-group">
+          <div>結束時間: <strong id="modalEndTime" style="color: #38bdf8;">0.00s</strong></div>
+          <div class="nudge-buttons">
+            <button id="nudgeEndMinus" class="btn btn-secondary btn-sm" style="flex:1;">-0.1s</button>
+            <button id="nudgeEndPlus" class="btn btn-secondary btn-sm" style="flex:1;">+0.1s</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btnSplitCurrent" class="btn btn-secondary btn-sm" style="margin-right: auto;" title="將此句從中間拆分為兩句">
+          ✂ 拆分此段 (Split)
+        </button>
+        <button id="btnSaveModal" class="btn btn-primary">
+          💾 儲存變更
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Custom Lesson Modal -->
-  <div class="modal-overlay" id="modal-custom">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">自訂迴音練習句子</h3>
-        <button class="btn-icon-close" id="btn-close-modal">&times;</button>
-      </div>
-      <form id="form-custom-lesson">
-        <div class="form-group">
-          <label>句子標題 / 主題</label>
-          <input type="text" class="form-input" id="custom-title" placeholder="例如：電影對白、簡報開場白..." required>
-        </div>
-        <div class="form-group">
-          <label>英文句子內容</label>
-          <textarea class="form-textarea" id="custom-text" rows="3" placeholder="輸入你想用迴音法練習的英文句子..." required></textarea>
-        </div>
-        <div class="form-group">
-          <label>中文翻譯 (選填)</label>
-          <input type="text" class="form-input" id="custom-translation" placeholder="補充中文意思...">
-        </div>
-        <button type="submit" class="btn-primary-glow" style="width: 100%; justify-content: center;">新增並立刻開始練習</button>
-      </form>
-    </div>
-  </div>
+  <!-- Mobile Fixed Bottom Action Bar (手機單手大拇指操控列) -->
+  <aside id="mobileBottomBar" class="mobile-bottom-bar">
+    <button id="mobileBtnPrev" class="btn btn-secondary mobile-btn-icon" title="上一句">⏮</button>
+    <button id="mobileBtnRepeat" class="btn btn-secondary mobile-btn-icon" title="重練此句">🔁</button>
+    <button id="mobileMainActionBtn" class="btn btn-primary mobile-main-btn">
+      ▶ 開始回音法訓練
+    </button>
+    <button id="mobileBtnNext" class="btn btn-secondary mobile-btn-icon" title="下一句">⏭</button>
+  </aside>
 
-  <!-- History Log Modal -->
-  <div class="modal-overlay" id="modal-history">
-    <div class="modal-box">
-      <div class="modal-header">
-        <h3 style="font-family: var(--font-heading); font-size: 1.2rem;">📊 我的迴音練習歷程</h3>
-        <button class="btn-icon-close" id="btn-close-history">&times;</button>
-      </div>
-      <div id="history-list">
-        <!-- Dynamically populated -->
-      </div>
-    </div>
-  </div>
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
-  <!-- JavaScript Modules -->
-  <script type="module" src="js/app.js"></script>
+  <!-- Application Logic Modules -->
+  <script src="js/furigana-parser.js"></script>
+  <script src="js/audio-engine.js"></script>
+  <script src="js/waveform-canvas.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    // Register Service Worker for PWA offline support
+    if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+          console.log('SW register failed (ok if local file preview):', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

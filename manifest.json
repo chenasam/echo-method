@@ -1,0 +1,17 @@
+{
+  "name": "日語回音法自主訓練器",
+  "short_name": "回音法練習",
+  "description": "實踐台大史嘉琳教授 Echo Method「聽、停、摹、查、比」核心五步驟之日語自律學習工具",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg"
+    }
+  ]
+}

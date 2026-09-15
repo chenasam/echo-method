@@ -1,485 +1,1069 @@
 /**
- * 回音法 (Echo Method) 主程式應用邏輯 (app.js)
+ * Main Application Controller & Echo Method State Machine
+ * Prof. Karen Chung Echo Method: Listen -> Silent Echo 2s -> Mimic (Rec) -> Reveal -> Compare
  */
 
-import { PRESET_LESSONS, LESSON_CATEGORIES } from './lessons-data.js';
-import { AudioEngine } from './audio-engine.js';
-import { VoiceRecorder } from './recorder.js';
-import { StorageManager } from './storage.js';
-
-class EchoApp {
+class EchoTrainerApp {
   constructor() {
     this.audioEngine = new AudioEngine();
-    this.recorder = new VoiceRecorder();
-    this.currentLesson = PRESET_LESSONS[0];
-    this.lessonsList = [...PRESET_LESSONS];
-    this.currentCategory = 'all';
+    this.waveform = null;
 
-    // 4 步驟狀態: 'IDLE' | 'STEP1_LISTEN' | 'STEP2_ECHO' | 'STEP3_RECORD' | 'STEP4_COMPARE'
-    this.workflowState = 'IDLE';
-    this.echoTimer = null;
-    this.echoRemainingSec = 0;
-    this.playbackRate = 1.0;
-    this.showSubtitles = false; // 預設遮罩/隱藏字幕，強迫聽力訓練
+    // Project state
+    this.currentFileName = '';
+    this.segments = [];
+    this.currentIdx = 0;
+    this.currentLoop = 1;
+    this.maxLoop = 3;
+    this.autoAdvance = true; // Auto-flow vs Self-paced
+    this.echoWaitDuration = 2.0;
+    this.mimicTimeMode = '1.8'; // Mimic duration setting: '1.4' | '1.8' | '2.5' | 'manual'
 
-    this.initElements();
+    // State machine: 'IDLE' | 'LISTEN' | 'ECHO' | 'MIMIC' | 'REVEAL'
+    this.state = 'IDLE';
+    this.timerId = null;
+    this.countdownInterval = null;
+    this.editingIdx = -1;
+
+    // DOM references
+    this.dom = {};
+    this.cacheDom();
+    this.initWaveform();
     this.bindEvents();
-    this.renderHeaderStats();
-    this.renderLessonCards();
-    this.loadLesson(this.currentLesson);
+    this.bindKeyboardShortcuts();
   }
 
-  initElements() {
-    // DOM Elements
-    this.elStep1 = document.getElementById('step-1');
-    this.elStep2 = document.getElementById('step-2');
-    this.elStep3 = document.getElementById('step-3');
-    this.elStep4 = document.getElementById('step-4');
+  cacheDom() {
+    this.dom.audioFileInput = document.getElementById('audioFileInput');
+    this.dom.jsonFileInput = document.getElementById('jsonFileInput');
+    this.dom.btnSelectAudio = document.getElementById('btnSelectAudio');
+    this.dom.btnLoadDemo = document.getElementById('btnLoadDemo');
+    this.dom.audioFileName = document.getElementById('audioFileName');
+    this.dom.audioDuration = document.getElementById('audioDuration');
 
-    this.elCanvas = document.getElementById('waveform-canvas');
-    this.elEchoCountdown = document.getElementById('echo-countdown');
-    this.elEchoStatusText = document.getElementById('echo-status-text');
+    // Steps
+    this.dom.stepNodes = [
+      document.getElementById('step1'),
+      document.getElementById('step2'),
+      document.getElementById('step3'),
+      document.getElementById('step4'),
+      document.getElementById('step5')
+    ];
 
-    this.elTextTitle = document.getElementById('lesson-title');
-    this.elTextSentence = document.getElementById('lesson-sentence');
-    this.elTextSubMask = document.getElementById('subtitle-mask');
-    this.elTextIpa = document.getElementById('lesson-ipa');
-    this.elTextTranslation = document.getElementById('lesson-translation');
-    this.elTextTips = document.getElementById('lesson-tips');
-    this.elHighlightsContainer = document.getElementById('lesson-highlights');
+    // Hero Visuals
+    this.dom.timerSvgCircle = document.getElementById('timerSvgCircle');
+    this.dom.timerCenterText = document.getElementById('timerCenterText');
+    this.dom.phaseTitle = document.getElementById('phaseTitle');
+    this.dom.phaseInstruction = document.getElementById('phaseInstruction');
+    this.dom.micMeterContainer = document.getElementById('micMeterContainer');
+    this.dom.micMeterBar = document.getElementById('micMeterBar');
 
-    // Controls
-    this.btnStartWorkflow = document.getElementById('btn-start-workflow');
-    this.btnPlayOriginal = document.getElementById('btn-play-original');
-    this.btnToggleRecord = document.getElementById('btn-toggle-record');
-    this.btnPlayRecording = document.getElementById('btn-play-recording');
-    this.btnToggleSubtitles = document.getElementById('btn-toggle-subtitles');
-    this.speedSelector = document.getElementById('speed-selector');
+    // Reveal & Compare
+    this.dom.revealContainer = document.getElementById('revealContainer');
+    this.dom.revealJp = document.getElementById('revealJp');
+    this.dom.revealZh = document.getElementById('revealZh');
+    this.dom.compareActions = document.getElementById('compareActions');
+    this.dom.btnPlayOrigin = document.getElementById('btnPlayOrigin');
+    this.dom.btnPlaySelf = document.getElementById('btnPlaySelf');
+    this.dom.btnCompareAll = document.getElementById('btnCompareAll');
+    this.dom.btnFinishMimicEarly = document.getElementById('btnFinishMimicEarly');
 
-    // Navigation & Modals
-    this.categoryFilters = document.getElementById('category-filters');
-    this.lessonsGrid = document.getElementById('lessons-grid');
-    this.btnCustomLesson = document.getElementById('btn-custom-lesson');
-    this.modalCustom = document.getElementById('modal-custom');
-    this.btnCloseModal = document.getElementById('btn-close-modal');
-    this.formCustomLesson = document.getElementById('form-custom-lesson');
+    // Main training controls
+    this.dom.btnStartTraining = document.getElementById('btnStartTraining');
+    this.dom.btnPauseTraining = document.getElementById('btnPauseTraining');
+    this.dom.btnPrevSeg = document.getElementById('btnPrevSeg');
+    this.dom.btnNextSeg = document.getElementById('btnNextSeg');
+    this.dom.btnRepeatSeg = document.getElementById('btnRepeatSeg');
+    this.dom.loopDisplay = document.getElementById('loopDisplay');
 
-    this.btnHistory = document.getElementById('btn-history');
-    this.modalHistory = document.getElementById('modal-history');
-    this.btnCloseHistory = document.getElementById('btn-close-history');
-    this.historyList = document.getElementById('history-list');
+    // Settings
+    this.dom.repeatSelect = document.getElementById('repeatSelect');
+    this.dom.speedSelect = document.getElementById('speedSelect');
+    this.dom.echoWaitSelect = document.getElementById('echoWaitSelect');
+    this.dom.mimicTimeSelect = document.getElementById('mimicTimeSelect');
+    this.dom.autoFlowToggle = document.getElementById('autoFlowToggle');
+    this.dom.thresholdSlider = document.getElementById('thresholdSlider');
+    this.dom.thresholdValue = document.getElementById('thresholdValue');
+    this.dom.minSilenceSlider = document.getElementById('minSilenceSlider');
+    this.dom.minSilenceValue = document.getElementById('minSilenceValue');
+    this.dom.btnRedetect = document.getElementById('btnRedetect');
 
-    // Ratings
-    this.ratingButtons = document.querySelectorAll('.btn-rating');
+    // Segment List
+    this.dom.segCountBadge = document.getElementById('segCountBadge');
+    this.dom.btnToggleAllSegs = document.getElementById('btnToggleAllSegs');
+    this.dom.segmentItemsList = document.getElementById('segmentItemsList');
+
+    // Export/Import
+    this.dom.btnExportJson = document.getElementById('btnExportJson');
+    this.dom.btnExportAnki = document.getElementById('btnExportAnki');
+
+    // Modal
+    this.dom.editModal = document.getElementById('editModal');
+    this.dom.modalSegTitle = document.getElementById('modalSegTitle');
+    this.dom.editJpInput = document.getElementById('editJpInput');
+    this.dom.editZhInput = document.getElementById('editZhInput');
+    this.dom.modalRubyPreview = document.getElementById('modalRubyPreview');
+    this.dom.btnWrapRuby = document.getElementById('btnWrapRuby');
+    this.dom.modalStartTime = document.getElementById('modalStartTime');
+    this.dom.modalEndTime = document.getElementById('modalEndTime');
+    this.dom.btnSaveModal = document.getElementById('btnSaveModal');
+    this.dom.btnCancelModal = document.getElementById('btnCancelModal');
+    this.dom.btnSplitCurrent = document.getElementById('btnSplitCurrent');
+
+    // Mobile Bottom Bar
+    this.dom.mobileBottomBar = document.getElementById('mobileBottomBar');
+    this.dom.mobileMainActionBtn = document.getElementById('mobileMainActionBtn');
+    this.dom.mobileBtnPrev = document.getElementById('mobileBtnPrev');
+    this.dom.mobileBtnRepeat = document.getElementById('mobileBtnRepeat');
+    this.dom.mobileBtnNext = document.getElementById('mobileBtnNext');
+
+    // Toast
+    this.dom.toastContainer = document.getElementById('toastContainer');
+  }
+
+  initWaveform() {
+    const canvas = document.getElementById('waveformCanvas');
+    this.waveform = new WaveformCanvas(canvas, {
+      onSegmentClick: (segIdx) => {
+        this.selectSegment(segIdx, true);
+      }
+    });
   }
 
   bindEvents() {
-    // 主按鈕：啟動 4 步驟自動迴音訓練
-    this.btnStartWorkflow.addEventListener('click', () => this.startWorkflow());
-
-    // 個別手動按鈕
-    this.btnPlayOriginal.addEventListener('click', () => this.playOriginalAudio());
-    this.btnToggleRecord.addEventListener('click', () => this.toggleRecording());
-    this.btnPlayRecording.addEventListener('click', () => this.recorder.playRecording());
-    
-    // 字幕遮罩切換
-    this.btnToggleSubtitles.addEventListener('click', () => {
-      this.showSubtitles = !this.showSubtitles;
-      this.updateSubtitleVisibility();
-    });
-
-    // 播放速度
-    this.speedSelector.addEventListener('change', (e) => {
-      this.playbackRate = parseFloat(e.target.value);
-    });
-
-    // 選擇/上傳自訂本機音檔 (MP3, WAV, M4A, OGG)
-    const audioFileInput = document.getElementById('audio-file-input');
-    if (audioFileInput) {
-      audioFileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const audio = this.audioEngine.loadCustomAudioFile(file);
-          this.hasCustomAudio = true;
-          this.customAudioName = file.name;
-          
-          audio.onloadedmetadata = () => {
-            this.setupSegmentPanel();
-          };
-          setTimeout(() => this.setupSegmentPanel(), 800);
-
-          alert(`📁 已成功載入本機音檔：${file.name}\n已在上方為您自動切分分句！`);
-          this.elEchoStatusText.textContent = `已載入本機音檔：${file.name}`;
-        }
-      });
+    // Audio upload
+    this.dom.btnSelectAudio.onclick = () => this.dom.audioFileInput.click();
+    this.dom.audioFileInput.onchange = (e) => this.handleAudioFile(e.target.files[0]);
+    if (this.dom.btnLoadDemo) {
+      this.dom.btnLoadDemo.onclick = () => this.loadDemoExperience();
     }
 
-    // 雲端音檔彈窗與讀取
-    const modalCloud = document.getElementById('modal-cloud');
-    const btnCloudUrl = document.getElementById('btn-cloud-url');
-    const btnCloseCloud = document.getElementById('btn-close-cloud');
-    const btnFetchCloud = document.getElementById('btn-fetch-cloud');
-    const cloudUrlInput = document.getElementById('cloud-url-input');
+    // JSON upload
+    this.dom.jsonFileInput.onchange = (e) => this.handleJsonImport(e.target.files[0]);
 
-    if (btnCloudUrl && modalCloud) {
-      btnCloudUrl.addEventListener('click', () => modalCloud.classList.add('open'));
-      btnCloseCloud?.addEventListener('click', () => modalCloud.classList.remove('open'));
-      btnFetchCloud?.addEventListener('click', () => {
-        let url = cloudUrlInput.value.trim();
-        if (!url) return;
+    // Main buttons
+    this.dom.btnStartTraining.onclick = () => this.startTraining();
+    this.dom.btnPauseTraining.onclick = () => this.pauseTraining();
+    this.dom.btnPrevSeg.onclick = () => this.prevSegment();
+    this.dom.btnNextSeg.onclick = () => this.nextSegment();
+    this.dom.btnRepeatSeg.onclick = () => this.repeatCurrent();
+    this.dom.btnFinishMimicEarly.onclick = () => this.endMimicPhaseEarly();
 
-        // Google Drive 連結解析
-        const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-        if (gdriveMatch) {
-          const fileId = gdriveMatch[1];
-          url = `https://docs.google.com/uc?export=download&id=${fileId}`;
-        } else if (url.includes('dropbox.com')) {
-          url = url.replace('dl=0', 'raw=1');
-        }
-
-        modalCloud.classList.remove('open');
-        this.audioEngine.customAudioElement = new Audio(url);
-        this.hasCustomAudio = true;
-        this.customAudioName = "雲端音檔";
-
-        this.audioEngine.customAudioElement.onloadedmetadata = () => {
-          this.setupSegmentPanel();
-        };
-        setTimeout(() => this.setupSegmentPanel(), 1000);
-
-        alert(`☁️ 已成功載入雲端音檔網址！`);
-        this.elEchoStatusText.textContent = `已載入雲端音檔：${url}`;
-      });
+    // Mobile Bottom Bar buttons
+    if (this.dom.mobileMainActionBtn) {
+      this.dom.mobileMainActionBtn.onclick = () => this.handleMobileMainAction();
+    }
+    if (this.dom.mobileBtnPrev) {
+      this.dom.mobileBtnPrev.onclick = () => this.prevSegment();
+    }
+    if (this.dom.mobileBtnRepeat) {
+      this.dom.mobileBtnRepeat.onclick = () => this.repeatCurrent();
+    }
+    if (this.dom.mobileBtnNext) {
+      this.dom.mobileBtnNext.onclick = () => this.nextSegment();
     }
 
-    // 分句時間微調控制項
-    this.segStartInput = document.getElementById('seg-start-time');
-    this.segEndInput = document.getElementById('seg-end-time');
+    // Step 5 comparison buttons
+    this.dom.btnPlayOrigin.onclick = () => this.playCurrentOrigin();
+    this.dom.btnPlaySelf.onclick = () => this.audioEngine.playSelfVoice();
+    this.dom.btnCompareAll.onclick = () => this.playSequentialCompare();
 
-    document.getElementById('btn-seg-start-minus')?.addEventListener('click', () => this.adjustTime('start', -0.5));
-    document.getElementById('btn-seg-start-plus')?.addEventListener('click', () => this.adjustTime('start', 0.5));
-    document.getElementById('btn-seg-end-minus')?.addEventListener('click', () => this.adjustTime('end', -0.5));
-    document.getElementById('btn-seg-end-plus')?.addEventListener('click', () => this.adjustTime('end', 0.5));
-    
-    document.getElementById('btn-preview-segment')?.addEventListener('click', () => {
-      const start = parseFloat(this.segStartInput.value) || 0;
-      const end = parseFloat(this.segEndInput.value) || null;
-      this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
-      this.audioEngine.playAudioSegment(start, end, this.playbackRate).then(() => {
-        this.audioEngine.startWaveformVisualizer(this.elCanvas, 'idle');
-      });
-    });
-
-    // 分類篩選
-    this.categoryFilters.addEventListener('click', (e) => {
-      const btn = e.target.closest('.cat-chip');
-      if (!btn) return;
-      document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      this.currentCategory = btn.dataset.cat;
-      this.renderLessonCards();
-    });
-
-    // 自訂句子彈窗
-    this.btnCustomLesson.addEventListener('click', () => this.modalCustom.classList.add('open'));
-    this.btnCloseModal.addEventListener('click', () => this.modalCustom.classList.remove('open'));
-    this.formCustomLesson.addEventListener('submit', (e) => this.handleCustomLessonSubmit(e));
-
-    // 歷史紀錄彈窗
-    this.btnHistory.addEventListener('click', () => {
-      this.renderHistoryModal();
-      this.modalHistory.classList.add('open');
-    });
-    this.btnCloseHistory.addEventListener('click', () => this.modalHistory.classList.remove('open'));
-
-    // 自評打分按鈕
-    this.ratingButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const rating = parseInt(btn.dataset.rating);
-        StorageManager.recordPractice(this.currentLesson.id, rating);
-        this.renderHeaderStats();
-        alert('🎉 恭喜完成這次迴音練習！紀錄已儲存。');
-      });
-    });
-
-    // 錄音狀態變化
-    this.recorder.onStateChange = (state) => {
-      if (state.isRecording) {
-        this.btnToggleRecord.classList.add('recording');
-        this.btnToggleRecord.querySelector('span').textContent = '停止錄音';
-        this.audioEngine.startWaveformVisualizer(this.elCanvas, 'record');
-      } else {
-        this.btnToggleRecord.classList.remove('recording');
-        this.btnToggleRecord.querySelector('span').textContent = '重新錄音';
-        if (state.hasRecording) {
-          this.btnPlayRecording.disabled = false;
-          this.setStepActive('STEP4_COMPARE');
-        }
-      }
+    // Export buttons
+    this.dom.btnExportJson.onclick = () => {
+      StorageManager.exportJson(this.currentFileName, this.segments);
+      this.showToast('已匯出 JSON 字卡檔！');
     };
-  }
-
-  loadLesson(lesson) {
-    this.currentLesson = lesson;
-    this.workflowState = 'IDLE';
-    this.resetStepBadges();
-
-    this.elTextTitle.textContent = lesson.title;
-    this.elTextSentence.textContent = lesson.text;
-    this.elTextIpa.textContent = lesson.ipa || '';
-    this.elTextTranslation.textContent = lesson.translation || '';
-    this.elTextTips.innerHTML = lesson.tips ? `<strong>💡 迴音心法：</strong>${lesson.tips}` : '';
-
-    // 重點標記
-    this.elHighlightsContainer.innerHTML = '';
-    if (lesson.highlights) {
-      lesson.highlights.forEach(h => {
-        const tag = document.createElement('span');
-        tag.className = `hl-tag hl-${h.type}`;
-        tag.innerHTML = `<strong>${h.word}</strong>: ${h.note}`;
-        this.highlightsContainer = this.elHighlightsContainer.appendChild(tag);
-      });
+    this.dom.btnExportAnki.onclick = () => {
+      StorageManager.exportAnkiTsv(this.currentFileName, this.segments);
+      this.showToast('已匯出 Anki 專用卡片檔！');
+    };
+    if (this.dom.btnToggleAllSegs) {
+      this.dom.btnToggleAllSegs.onclick = () => this.toggleAllSegments();
     }
 
-    this.updateSubtitleVisibility();
-    this.btnPlayRecording.disabled = true;
-    this.audioEngine.startWaveformVisualizer(this.elCanvas, 'idle');
-    this.elEchoStatusText.textContent = '準備就緒，點擊「開始一鍵迴音特訓」';
-    this.elEchoCountdown.textContent = '';
-  }
-
-  updateSubtitleVisibility() {
-    if (this.showSubtitles) {
-      this.elTextSubMask.classList.add('revealed');
-      this.btnToggleSubtitles.innerHTML = `<svg class="icon"><use href="#icon-eye-off"/></svg> 隱藏字幕 (遮罩模式)`;
-    } else {
-      this.elTextSubMask.classList.remove('revealed');
-      this.btnToggleSubtitles.innerHTML = `<svg class="icon"><use href="#icon-eye"/></svg> 顯示字幕 (揭露)`;
+    // Settings
+    this.dom.repeatSelect.onchange = (e) => {
+      this.maxLoop = parseInt(e.target.value, 10);
+      this.updateLoopDisplay();
+    };
+    this.dom.speedSelect.onchange = (e) => {
+      this.audioEngine.playbackRate = parseFloat(e.target.value);
+    };
+    this.dom.echoWaitSelect.onchange = (e) => {
+      this.echoWaitDuration = parseFloat(e.target.value);
+    };
+    if (this.dom.mimicTimeSelect) {
+      this.dom.mimicTimeSelect.onchange = (e) => {
+        this.mimicTimeMode = e.target.value;
+        const modeDesc = {
+          '1.4': '常速緊湊模式',
+          '1.8': '標準充裕模式',
+          '2.5': '加倍放慢模式',
+          'manual': '手動結束模式（說完請按 Space 鍵）'
+        };
+        this.showToast(`已切換開口時長：${modeDesc[this.mimicTimeMode] || this.mimicTimeMode}`);
+        this.saveCurrentState();
+      };
     }
+    this.dom.autoFlowToggle.onchange = (e) => {
+      this.autoAdvance = e.target.checked;
+      this.showToast(this.autoAdvance ? '已啟用「自動心流巡航」' : '已切換為「自主步調學習」');
+    };
+
+    // Silence detection sliders
+    this.dom.thresholdSlider.oninput = (e) => {
+      this.dom.thresholdValue.innerText = e.target.value;
+    };
+    this.dom.minSilenceSlider.oninput = (e) => {
+      this.dom.minSilenceValue.innerText = `${e.target.value}s`;
+    };
+    this.dom.btnRedetect.onclick = () => this.redetectSegments();
+
+    // Modal events
+    this.dom.editJpInput.oninput = () => this.updateModalRubyPreview();
+    this.dom.btnWrapRuby.onclick = () => this.wrapSelectionWithRuby();
+    this.dom.btnCancelModal.onclick = () => this.closeEditModal();
+    this.dom.btnSaveModal.onclick = () => this.saveEditModal();
+    this.dom.btnSplitCurrent.onclick = () => this.splitSegmentFromModal();
+
+    // Modal time nudge buttons
+    document.getElementById('nudgeStartMinus').onclick = () => this.nudgeModalTime('start', -0.1);
+    document.getElementById('nudgeStartPlus').onclick = () => this.nudgeModalTime('start', 0.1);
+    document.getElementById('nudgeEndMinus').onclick = () => this.nudgeModalTime('end', -0.1);
+    document.getElementById('nudgeEndPlus').onclick = () => this.nudgeModalTime('end', 0.1);
   }
 
-  resetStepBadges() {
-    [this.elStep1, this.elStep2, this.elStep3, this.elStep4].forEach(el => {
-      el.classList.remove('active', 'completed');
+  bindKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      // Don't trigger shortcuts when typing in modal input
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (this.state === 'IDLE') {
+          this.startTraining();
+        } else if (this.state === 'MIMIC') {
+          // In mimic stage, Space immediately finishes speaking and proceeds to reveal!
+          this.endMimicPhaseEarly();
+        } else if (this.state === 'REVEAL') {
+          // In reveal stage, Space acts as next or repeat
+          if (this.currentLoop < this.maxLoop) {
+            this.repeatCurrent();
+          } else {
+            this.nextSegment();
+          }
+        } else {
+          this.pauseTraining();
+        }
+      } else if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        this.repeatCurrent();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        this.prevSegment();
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        this.nextSegment();
+      } else if (e.key === '1') {
+        e.preventDefault();
+        this.playCurrentOrigin();
+      } else if (e.key === '2') {
+        e.preventDefault();
+        this.audioEngine.playSelfVoice();
+      } else if (e.key === '3') {
+        e.preventDefault();
+        this.playSequentialCompare();
+      }
     });
   }
 
-  setStepActive(stepName) {
-    this.workflowState = stepName;
-    this.resetStepBadges();
+  /**
+   * Handle loading MP3 file
+   */
+  async handleAudioFile(file) {
+    if (!file) return;
+    this.currentFileName = file.name;
+    this.dom.audioFileName.innerText = file.name;
+    this.dom.audioFileName.title = file.name;
+    this.setPhaseHero('LOADING', '正在解碼音訊波形...', '請稍候，系統正透過 Web Audio API 進行高精準採樣');
 
-    if (stepName === 'STEP1_LISTEN') {
-      this.elStep1.classList.add('active');
-    } else if (stepName === 'STEP2_ECHO') {
-      this.elStep1.classList.add('completed');
-      this.elStep2.classList.add('active');
-    } else if (stepName === 'STEP3_RECORD') {
-      this.elStep1.classList.add('completed');
-      this.elStep2.classList.add('completed');
-      this.elStep3.classList.add('active');
-    } else if (stepName === 'STEP4_COMPARE') {
-      this.elStep1.classList.add('completed');
-      this.elStep2.classList.add('completed');
-      this.elStep3.classList.add('completed');
-      this.elStep4.classList.add('active');
+    try {
+      const buffer = await this.audioEngine.loadAudioFile(file);
+      const minutes = Math.floor(buffer.duration / 60);
+      const seconds = Math.floor(buffer.duration % 60);
+      this.dom.audioDuration.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      // Check for saved project in LocalStorage first
+      const savedProject = StorageManager.loadProject(file.name);
+      if (savedProject && savedProject.segments && savedProject.segments.length > 0) {
+        this.segments = savedProject.segments;
+        this.showToast('已從本機暫存載入先前練習紀錄！');
+      } else {
+        // Run auto silence detection
+        const threshold = parseFloat(this.dom.thresholdSlider.value);
+        const minSilence = parseFloat(this.dom.minSilenceSlider.value);
+        this.segments = this.audioEngine.detectSegments(threshold, minSilence);
+        this.showToast(`智慧斷句完成，偵測出 ${this.segments.length} 個發音段落！`);
+      }
+
+      // Generate Peaks for Waveform Canvas
+      const peaks = this.audioEngine.getWaveformPeaks(1000);
+      this.waveform.setData(peaks, buffer.duration, this.segments);
+
+      this.currentIdx = 0;
+      this.currentLoop = 1;
+      this.renderSegmentList();
+      this.dom.btnStartTraining.disabled = false;
+      this.setPhaseHero('READY', '音檔準備完畢', '點擊「開始回音法訓練」或按空白鍵 Space 開始');
+    } catch (err) {
+      console.error(err);
+      alert('音檔載入失敗，請確認檔案格式是否支援（建議 MP3 / M4A / WAV）');
+      this.setPhaseHero('IDLE', '載入失敗', '請重新選取音檔');
     }
   }
 
   /**
-   * 4-Step Automated Echo Method Workflow Engine
+   * Load built-in demo project
    */
-  async startWorkflow() {
-    this.audioEngine.ensureAudioContext();
+  async loadDemoExperience() {
+    this.currentFileName = 'sample_audio.wav';
+    this.dom.audioFileName.innerText = '示範：日語自我介紹與重音訓練.wav';
+    this.setPhaseHero('LOADING', '正在載入示範專案...', '系統正載入體驗音檔與字卡');
 
-    // 1. Step 1: Listen to native audio
-    this.setStepActive('STEP1_LISTEN');
-    this.elEchoStatusText.textContent = this.hasCustomAudio 
-      ? `【Step 1 仔細聽】播放載入的音檔 (${this.customAudioName})...` 
-      : '【Step 1 仔細聽】請專注聽母語發音的音調與連音...';
-    this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
-
-    let durationMs = 3000;
-    if (this.hasCustomAudio) {
-      const segStart = parseFloat(this.segStartInput?.value) || 0;
-      const segEnd = parseFloat(this.segEndInput?.value) || null;
-      if (segEnd && segEnd > segStart) {
-        durationMs = ((segEnd - segStart) / this.playbackRate) * 1000;
-      }
-      await this.audioEngine.playAudioSegment(segStart, segEnd, this.playbackRate);
-    } else {
-      durationMs = await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
-    }
-
-    // 2. Step 2: Mental Echo (心裡留白倒數)
-    this.setStepActive('STEP2_ECHO');
-    this.elEchoStatusText.textContent = '【Step 2 心裡迴音】閉上眼睛，在腦海重放剛才聲音細節...';
-    this.audioEngine.startWaveformVisualizer(this.elCanvas, 'echo');
-
-    const pauseSec = Math.ceil((durationMs / 1000) * (this.currentLesson.recommendedEchoPauseSec || 1.2));
-    await this.runEchoCountdown(pauseSec);
-
-    // 3. Step 3: Mimic & Record (大聲模仿與錄音)
-    this.setStepActive('STEP3_RECORD');
-    this.elEchoStatusText.textContent = '【Step 3 大聲模仿】請開啟麥克風大聲模仿唸出！';
-    
     try {
-      await this.recorder.startRecording();
-      // 錄音保持母語音訊時間之 1.5 倍長度
-      setTimeout(() => {
-        if (this.recorder.isRecording) {
-          this.recorder.stopRecording();
-          this.elEchoStatusText.textContent = '【Step 4 比對與自評】點擊下方按鈕比對發音並打分！';
-        }
-      }, Math.max(3000, durationMs * 1.5));
-    } catch (e) {
-      this.elEchoStatusText.textContent = '錄音權限未開啟，請手動練習';
+      const buffer = await this.audioEngine.loadAudioFromUrl('./sample_audio.wav');
+      const minutes = Math.floor(buffer.duration / 60);
+      const seconds = Math.floor(buffer.duration % 60);
+      this.dom.audioDuration.innerText = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+      // Load sample JSON
+      const resp = await fetch('./sample_data.json');
+      const sampleSegments = await resp.json();
+      this.segments = sampleSegments;
+
+      const peaks = this.audioEngine.getWaveformPeaks(1000);
+      this.waveform.setData(peaks, buffer.duration, this.segments);
+
+      this.currentIdx = 0;
+      this.currentLoop = 1;
+      this.renderSegmentList();
+      this.dom.btnStartTraining.disabled = false;
+      this.setPhaseHero('READY', '示範專案載入成功！', '請點擊「開始回音法訓練」或按空白鍵 Space 開始體驗');
+      this.showToast('已載入示範音檔與字卡！');
+    } catch (err) {
+      console.error(err);
+      this.showToast('載入範例失敗：' + err.message);
     }
   }
 
-  runEchoCountdown(seconds) {
-    return new Promise((resolve) => {
-      this.echoRemainingSec = seconds;
-      this.elEchoCountdown.textContent = `${this.echoRemainingSec}s`;
+  /**
+   * Re-run silence detection with current sliders
+   */
+  redetectSegments() {
+    if (!this.audioEngine.audioBuffer) {
+      alert('請先載入音檔！');
+      return;
+    }
+    if (this.segments.some(s => s.jp || s.zh)) {
+      if (!confirm('重新斷句將重置現有切點，已輸入的文字可能無法對應。是否確定重新斷句？')) {
+        return;
+      }
+    }
 
-      this.echoTimer = setInterval(() => {
-        this.echoRemainingSec -= 1;
-        if (this.echoRemainingSec <= 0) {
-          clearInterval(this.echoTimer);
-          this.elEchoCountdown.textContent = '';
-          resolve();
-        } else {
-          this.elEchoCountdown.textContent = `${this.echoRemainingSec}s`;
-        }
-      }, 1000);
+    const threshold = parseFloat(this.dom.thresholdSlider.value);
+    const minSilence = parseFloat(this.dom.minSilenceSlider.value);
+    this.segments = this.audioEngine.detectSegments(threshold, minSilence);
+    this.currentIdx = 0;
+    this.waveform.setSegments(this.segments);
+    this.renderSegmentList();
+    this.saveCurrentState();
+    this.showToast(`已套用新靈敏度，重新劃分 ${this.segments.length} 句`);
+  }
+
+  /**
+   * Import JSON card file
+   */
+  async handleJsonImport(file) {
+    if (!file) return;
+    try {
+      const imported = await StorageManager.importJsonFile(file);
+      this.segments = imported;
+      this.waveform.setSegments(this.segments);
+      this.renderSegmentList();
+      this.saveCurrentState();
+      this.showToast(`成功匯入 ${imported.length} 句字卡！`);
+    } catch (err) {
+      alert('匯入失敗：' + err.message);
+    }
+  }
+
+  hasAnyEnabledSegments() {
+    return this.segments.some(s => s.enabled !== false);
+  }
+
+  getNextEnabledIndex(startIdx, forward = true) {
+    if (forward) {
+      for (let i = startIdx; i < this.segments.length; i++) {
+        if (this.segments[i].enabled !== false) return i;
+      }
+    } else {
+      for (let i = startIdx; i >= 0; i--) {
+        if (this.segments[i].enabled !== false) return i;
+      }
+    }
+    return -1;
+  }
+
+  /**
+   * Main Training State Loop
+   */
+  async startTraining() {
+    if (!this.audioEngine.audioBuffer) {
+      alert('請先載入音檔才能開始訓練！');
+      return;
+    }
+    if (!this.segments.length) {
+      alert('請先載入音檔並完成斷句！');
+      return;
+    }
+    if (!this.hasAnyEnabledSegments()) {
+      alert('目前沒有勾選任何段落！請至少勾選 1 句進行練習。');
+      return;
+    }
+
+    // Initialize microphone permissions
+    const micOk = await this.audioEngine.setupMic();
+    if (!micOk) {
+      this.showToast('提示：未開啟麥克風權限，開口模仿將無法錄音對比。');
+    }
+
+    this.dom.btnStartTraining.style.display = 'none';
+    this.dom.btnPauseTraining.style.display = 'inline-flex';
+
+    // If current segment is disabled, start from first enabled segment
+    if (this.currentIdx >= this.segments.length || this.segments[this.currentIdx].enabled === false) {
+      const firstEnabled = this.getNextEnabledIndex(0, true);
+      this.currentIdx = firstEnabled !== -1 ? firstEnabled : 0;
+      this.currentLoop = 1;
+    }
+
+    this.runStep1Listen();
+  }
+
+  pauseTraining() {
+    this.state = 'IDLE';
+    this.clearTimers();
+    this.audioEngine.stopPlayback();
+    this.audioEngine.stopRecording();
+    this.dom.micMeterContainer.style.display = 'none';
+
+    this.dom.btnStartTraining.style.display = 'inline-flex';
+    this.dom.btnPauseTraining.style.display = 'none';
+    this.setPhaseHero('PAUSED', '訓練已暫停', '隨時點擊繼續或按 Space 鍵恢復訓練');
+  }
+
+  clearTimers() {
+    if (this.timerId) clearTimeout(this.timerId);
+    if (this.countdownInterval) clearInterval(this.countdownInterval);
+    this.timerId = null;
+    this.countdownInterval = null;
+  }
+
+  /**
+   * STEP 1: Listen (專注聆聽)
+   */
+  runStep1Listen() {
+    this.state = 'LISTEN';
+    this.clearTimers();
+    this.updateStepIndicators(1);
+    this.updateLoopDisplay();
+    this.waveform.setActiveSegment(this.currentIdx);
+    this.scrollSegmentIntoView(this.currentIdx);
+
+    // Hide text and comparison bar
+    this.dom.revealContainer.style.display = 'none';
+    this.dom.compareActions.style.display = 'none';
+    this.dom.micMeterContainer.style.display = 'none';
+    this.dom.btnFinishMimicEarly.style.display = 'none';
+
+    const seg = this.segments[this.currentIdx];
+    const duration = (seg.end - seg.start) / this.audioEngine.playbackRate;
+
+    this.setPhaseHero(
+      'LISTEN',
+      `STEP 1：專注聆聽 (第 ${this.currentIdx + 1} 句)`,
+      '耳朵專注捕捉母語發音、高低音起伏（Pitch Accent）與停頓長度'
+    );
+
+    // Animate circular ring during playback
+    this.startRingCountdown(duration, () => {
+      // Finished playing original -> Transition to STEP 2
+      this.runStep2Echo();
+    });
+
+    this.audioEngine.playSegment(
+      seg.start,
+      seg.end,
+      this.audioEngine.playbackRate,
+      (currTime) => this.waveform.setCurrentTime(currTime)
+    );
+  }
+
+  /**
+   * STEP 2: Echo 2s (強制留白 2 秒・內心回放)
+   */
+  runStep2Echo() {
+    this.state = 'ECHO';
+    this.clearTimers();
+    this.updateStepIndicators(2);
+
+    this.setPhaseHero(
+      'ECHO',
+      'STEP 2：大腦回音中...',
+      '嘴巴緊閉！讓剛才的聲音在腦海神經中自然共鳴迴響（Echoic Memory）'
+    );
+
+    const echoSec = this.echoWaitDuration;
+    this.startRingCountdown(echoSec, () => {
+      // Echo wait completed -> Transition to STEP 3
+      this.runStep3Mimic();
     });
   }
 
-  async playOriginalAudio() {
-    this.audioEngine.ensureAudioContext();
-    this.audioEngine.startWaveformVisualizer(this.elCanvas, 'listen');
-    await this.audioEngine.speakText(this.currentLesson.text, this.playbackRate);
-    this.audioEngine.startWaveformVisualizer(this.elCanvas, 'idle');
-  }
+  /**
+   * STEP 3: Mimic & Record (開口模仿)
+   */
+  runStep3Mimic() {
+    this.state = 'MIMIC';
+    this.clearTimers();
+    this.updateStepIndicators(3);
 
-  async toggleRecording() {
-    if (this.recorder.isRecording) {
-      this.recorder.stopRecording();
+    const seg = this.segments[this.currentIdx];
+    const duration = (seg.end - seg.start) / this.audioEngine.playbackRate;
+    const isManual = this.mimicTimeMode === 'manual';
+
+    this.setPhaseHero(
+      'MIMIC',
+      'STEP 3：換你開口模仿！',
+      isManual
+        ? '請從容模仿發音，說完請按【空白鍵 Space】或下方按鈕進入揭曉'
+        : '依據剛才的大腦心像模仿發音（若提早說完可按 Space 提前揭曉）'
+    );
+
+    // Show mic meter & early finish button
+    this.dom.micMeterContainer.style.display = 'block';
+    this.dom.btnFinishMimicEarly.style.display = 'inline-flex';
+
+    this.audioEngine.startRecording((level) => {
+      this.dom.micMeterBar.style.width = `${level}%`;
+    });
+
+    if (isManual) {
+      // Manual mode: displays elapsed time without rushing, with generous 45s safety limit
+      this.startElapsedTimer(45.0, () => {
+        this.endMimicPhaseEarly();
+      });
     } else {
-      await this.recorder.startRecording();
+      const multiplier = parseFloat(this.mimicTimeMode) || 1.8;
+      // Generous formula: minimum 4.5s, duration * multiplier + 2.0s buffer
+      const mimicTime = Math.max(4.5, parseFloat((duration * multiplier + 2.0).toFixed(1)));
+      this.startRingCountdown(mimicTime, () => {
+        this.endMimicPhaseEarly();
+      });
     }
   }
 
-  renderHeaderStats() {
-    const data = StorageManager.getStreakData();
-    document.getElementById('stat-streak').textContent = `${data.currentStreak} 天`;
-    document.getElementById('stat-count').textContent = `${data.totalPracticedCount} 句`;
+  startElapsedTimer(maxSeconds, onTimeout) {
+    const circumference = 283;
+    let elapsed = 0;
+    const intervalMs = 100;
+
+    this.dom.timerSvgCircle.style.strokeDashoffset = circumference;
+    this.dom.timerCenterText.innerText = '0.0';
+
+    this.countdownInterval = setInterval(() => {
+      elapsed += intervalMs / 1000;
+      this.dom.timerCenterText.innerText = elapsed.toFixed(1);
+      // Gentle breathing pulse on ring
+      const pulse = (Math.sin(elapsed * 3) + 1) / 2;
+      this.dom.timerSvgCircle.style.strokeDashoffset = circumference * (0.8 - pulse * 0.4);
+
+      if (elapsed >= maxSeconds) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+        if (onTimeout) onTimeout();
+      }
+    }, intervalMs);
   }
 
-  renderLessonCards() {
-    const filtered = this.currentCategory === 'all' 
-      ? this.lessonsList 
-      : this.lessonsList.filter(l => l.category === this.currentCategory);
+  endMimicPhaseEarly() {
+    if (this.state !== 'MIMIC') return;
+    this.clearTimers();
+    this.audioEngine.stopRecording();
+    this.dom.micMeterContainer.style.display = 'none';
+    this.dom.btnFinishMimicEarly.style.display = 'none';
+    this.runStep4And5Reveal();
+  }
 
-    this.lessonsGrid.innerHTML = '';
+  /**
+   * STEP 4 & 5: Reveal & Compare (答案揭曉與雙音對比)
+   */
+  runStep4And5Reveal() {
+    this.state = 'REVEAL';
+    this.clearTimers();
+    this.updateStepIndicators(4);
 
-    filtered.forEach(lesson => {
-      const card = document.createElement('div');
-      card.className = `lesson-card ${lesson.id === this.currentLesson.id ? 'active' : ''}`;
-      card.innerHTML = `
-        <div class="card-header">
-          <span class="badge diff-${lesson.difficulty}">${lesson.difficulty}</span>
-          <span class="cat-tag">${this.getCatName(lesson.category)}</span>
+    const seg = this.segments[this.currentIdx];
+
+    this.setPhaseHero(
+      'REVEAL',
+      'STEP 4 & 5：答案揭曉與雙音對比',
+      '檢視振假名與文字，點選下方按鈕比對自己的發音與母語者的語調差異'
+    );
+
+    // Reveal text
+    const rubyHtml = FuriganaParser.toRubyHtml(seg.jp || '<span style="color:#64748b">(尚未標註日語文字)</span>');
+    this.dom.revealJp.innerHTML = rubyHtml;
+    this.dom.revealZh.innerText = seg.zh || '(尚未標註中譯)';
+    this.dom.revealContainer.style.display = 'block';
+    this.dom.compareActions.style.display = 'flex';
+
+    // Highlight comparison node
+    setTimeout(() => this.updateStepIndicators(5), 600);
+
+    // If Auto-Flow mode is active, wait and advance
+    if (this.autoAdvance) {
+      const waitTime = Math.max(4500, (seg.end - seg.start) * 1000 + 3000);
+      this.timerId = setTimeout(() => {
+        if (this.state !== 'REVEAL') return;
+        this.advanceLoopOrNext();
+      }, waitTime);
+    }
+  }
+
+  advanceLoopOrNext() {
+    if (this.currentLoop < this.maxLoop) {
+      this.currentLoop++;
+      this.runStep1Listen();
+    } else {
+      this.currentLoop = 1;
+      const nextIdx = this.getNextEnabledIndex(this.currentIdx + 1, true);
+      if (nextIdx !== -1) {
+        this.currentIdx = nextIdx;
+        this.runStep1Listen();
+      } else {
+        // Finished all selected sentences!
+        this.state = 'IDLE';
+        this.updateStepIndicators(0);
+        this.setPhaseHero('DONE', '🎉 已完成所有勾選段落訓練！', '太棒了！您所選取的訓練段落已全數練習完畢。');
+        this.dom.btnStartTraining.style.display = 'inline-flex';
+        this.dom.btnPauseTraining.style.display = 'none';
+      }
+    }
+  }
+
+  repeatCurrent() {
+    if (this.state === 'IDLE') {
+      this.startTraining();
+      return;
+    }
+    this.runStep1Listen();
+  }
+
+  prevSegment() {
+    const prevIdx = this.getNextEnabledIndex(this.currentIdx - 1, false);
+    if (prevIdx !== -1) {
+      this.currentIdx = prevIdx;
+      this.currentLoop = 1;
+      this.runStep1Listen();
+    } else {
+      this.showToast('已經是第一個勾選的段落了！');
+    }
+  }
+
+  nextSegment() {
+    const nextIdx = this.getNextEnabledIndex(this.currentIdx + 1, true);
+    if (nextIdx !== -1) {
+      this.currentIdx = nextIdx;
+      this.currentLoop = 1;
+      this.runStep1Listen();
+    } else {
+      this.showToast('已經是最後一個勾選的段落了！');
+    }
+  }
+
+  selectSegment(idx, autoPlay = false) {
+    if (idx < 0 || idx >= this.segments.length) return;
+    this.currentIdx = idx;
+    this.currentLoop = 1;
+    this.renderSegmentList();
+    this.waveform.setActiveSegment(idx);
+
+    if (autoPlay) {
+      this.startTraining();
+    }
+  }
+
+  /**
+   * Comparison Playback Helpers
+   */
+  playCurrentOrigin() {
+    const seg = this.segments[this.currentIdx];
+    this.audioEngine.playSegment(seg.start, seg.end, this.audioEngine.playbackRate);
+  }
+
+  playSequentialCompare() {
+    const seg = this.segments[this.currentIdx];
+    this.dom.btnCompareAll.innerText = '正在連續對比中...';
+    this.audioEngine.playCompareSequence(
+      seg.start,
+      seg.end,
+      this.audioEngine.playbackRate,
+      (stage) => {
+        if (stage === 'origin') this.dom.btnCompareAll.innerText = '🔊 播放原音中...';
+        if (stage === 'gap') this.dom.btnCompareAll.innerText = '⏸ 短暫留白...';
+        if (stage === 'self') this.dom.btnCompareAll.innerText = '🎙 播放己音中...';
+      },
+      () => {
+        this.dom.btnCompareAll.innerHTML = '⚡ 連續對比 (原音 ➔ 己音)';
+      }
+    );
+  }
+
+  /**
+   * Circular Timer Helper
+   */
+  startRingCountdown(totalSeconds, onFinished) {
+    const circumference = 283; // 2 * pi * r (r=45)
+    let elapsed = 0;
+    const intervalMs = 50;
+
+    this.dom.timerSvgCircle.style.strokeDashoffset = 0;
+    this.dom.timerCenterText.innerText = totalSeconds.toFixed(1);
+
+    this.countdownInterval = setInterval(() => {
+      elapsed += intervalMs / 1000;
+      const remaining = Math.max(0, totalSeconds - elapsed);
+      const progressRatio = elapsed / totalSeconds;
+      const offset = circumference * progressRatio;
+
+      this.dom.timerSvgCircle.style.strokeDashoffset = Math.min(circumference, offset);
+      this.dom.timerCenterText.innerText = remaining.toFixed(1);
+
+      if (remaining <= 0.05) {
+        clearInterval(this.countdownInterval);
+        this.countdownInterval = null;
+        this.dom.timerSvgCircle.style.strokeDashoffset = circumference;
+        if (onFinished) onFinished();
+      }
+    }, intervalMs);
+  }
+
+  setPhaseHero(stateKey, title, instruction) {
+    this.dom.phaseTitle.innerText = title;
+    this.dom.phaseInstruction.innerText = instruction;
+
+    // Change circle color by state
+    if (stateKey === 'LISTEN') {
+      this.dom.timerSvgCircle.style.stroke = '#3b82f6';
+    } else if (stateKey === 'ECHO') {
+      this.dom.timerSvgCircle.style.stroke = '#f43f5e';
+    } else if (stateKey === 'MIMIC') {
+      this.dom.timerSvgCircle.style.stroke = '#10b981';
+    } else {
+      this.dom.timerSvgCircle.style.stroke = '#f59e0b';
+    }
+
+    this.syncMobileBarState();
+  }
+
+  syncMobileBarState() {
+    if (!this.dom.mobileMainActionBtn) return;
+    const btn = this.dom.mobileMainActionBtn;
+
+    btn.classList.remove('btn-mimic-active');
+
+    if (this.state === 'IDLE') {
+      btn.innerText = '▶ 開始回音法訓練';
+      btn.className = 'btn btn-primary mobile-main-btn';
+    } else if (this.state === 'LISTEN') {
+      btn.innerText = `⏸ 暫停 (第 ${this.currentIdx + 1} 句)`;
+      btn.className = 'btn btn-secondary mobile-main-btn';
+    } else if (this.state === 'ECHO') {
+      btn.innerText = '⏳ 大腦回音中...';
+      btn.className = 'btn btn-secondary mobile-main-btn';
+    } else if (this.state === 'MIMIC') {
+      btn.innerText = '🎙️ 我說完了（按此揭曉）';
+      btn.className = 'btn mobile-main-btn btn-mimic-active';
+    } else if (this.state === 'REVEAL') {
+      if (this.currentLoop < this.maxLoop) {
+        btn.innerText = `🔁 再練一次 (${this.currentLoop}/${this.maxLoop})`;
+      } else {
+        btn.innerText = '⏭ 下一句 (換句)';
+      }
+      btn.className = 'btn btn-primary mobile-main-btn';
+    }
+  }
+
+  handleMobileMainAction() {
+    if (this.state === 'IDLE') {
+      this.startTraining();
+    } else if (this.state === 'MIMIC') {
+      // Replaces physical spacebar on mobile devices!
+      this.endMimicPhaseEarly();
+    } else if (this.state === 'REVEAL') {
+      if (this.currentLoop < this.maxLoop) {
+        this.repeatCurrent();
+      } else {
+        this.nextSegment();
+      }
+    } else if (this.state === 'LISTEN' || this.state === 'ECHO') {
+      this.pauseTraining();
+    }
+  }
+
+  updateStepIndicators(activeStepNum) {
+    this.dom.stepNodes.forEach((node, index) => {
+      const stepNum = index + 1;
+      node.classList.remove('active', 'completed');
+      if (stepNum === activeStepNum) {
+        node.classList.add('active');
+      } else if (stepNum < activeStepNum) {
+        node.classList.add('completed');
+      }
+    });
+  }
+
+  updateLoopDisplay() {
+    this.dom.loopDisplay.innerText = `${this.currentLoop} / ${this.maxLoop}`;
+  }
+
+  /**
+   * Render Segments List
+   */
+  renderSegmentList() {
+    const totalCount = this.segments.length;
+    const enabledCount = this.segments.filter(s => s.enabled !== false).length;
+    this.dom.segCountBadge.innerText = `${enabledCount} / ${totalCount} 句參與`;
+    this.dom.segmentItemsList.innerHTML = '';
+
+    this.segments.forEach((seg, idx) => {
+      const isEnabled = seg.enabled !== false;
+      const div = document.createElement('div');
+      div.className = `segment-item ${idx === this.currentIdx ? 'active' : ''} ${!isEnabled ? 'disabled' : ''}`;
+
+      const rubyHtml = seg.jp
+        ? FuriganaParser.toRubyHtml(seg.jp)
+        : '<span style="color:#64748b; font-style: italic;">(點擊右側鉛筆標註文字)</span>';
+
+      div.innerHTML = `
+        <label class="seg-checkbox-wrapper" title="${isEnabled ? '已包含在練習中（點擊取消）' : '已略過此句（點擊加入練習）'}" onclick="event.stopPropagation()">
+          <input type="checkbox" class="seg-checkbox" ${isEnabled ? 'checked' : ''} onchange="window.app.toggleSegmentEnabled(${idx}, event)">
+        </label>
+        <div style="flex: 1; cursor: pointer;" onclick="window.app.selectSegment(${idx}, false)">
+          <div class="seg-meta">
+            <span class="seg-index">#${idx + 1}</span>
+            ${!isEnabled ? '<span class="seg-skip-badge">略過不練</span>' : ''}
+            <span class="seg-tag">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s</span>
+            <span class="seg-tag" style="background: rgba(244,63,94,0.1); color:#fda4af;">${(seg.end - seg.start).toFixed(1)}s</span>
+          </div>
+          <div class="seg-text">${rubyHtml}</div>
+          ${seg.zh ? `<div class="seg-zh">${seg.zh}</div>` : ''}
         </div>
-        <h3 class="card-title">${lesson.title}</h3>
-        <p class="card-text">"${lesson.text}"</p>
-        <p class="card-trans">${lesson.translation}</p>
+        <div class="seg-actions">
+          <button class="btn btn-secondary btn-sm" title="試聽此句" onclick="window.app.previewSegment(${idx})">▶</button>
+          <button class="btn btn-secondary btn-sm" title="編輯文字與微調" onclick="window.app.openEditModal(${idx})">✏</button>
+          ${idx < this.segments.length - 1 ? `<button class="btn btn-secondary btn-sm" title="與下一句合併" onclick="window.app.mergeWithNext(${idx})">🔗</button>` : ''}
+        </div>
       `;
 
-      card.addEventListener('click', () => {
-        document.querySelectorAll('.lesson-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        this.loadLesson(lesson);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      });
-
-      this.lessonsGrid.appendChild(card);
+      this.dom.segmentItemsList.appendChild(div);
     });
   }
 
-  getCatName(catId) {
-    const cat = LESSON_CATEGORIES.find(c => c.id === catId);
-    return cat ? cat.name.split(' ')[0] : '一般';
+  toggleSegmentEnabled(idx, event) {
+    if (event) event.stopPropagation();
+    const seg = this.segments[idx];
+    seg.enabled = (seg.enabled === false) ? true : false;
+    this.renderSegmentList();
+    this.waveform.render();
+    this.saveCurrentState();
   }
 
-  handleCustomLessonSubmit(e) {
-    e.preventDefault();
-    const title = document.getElementById('custom-title').value.trim() || '自訂迴音練習';
-    const text = document.getElementById('custom-text').value.trim();
-    const translation = document.getElementById('custom-translation').value.trim();
-
-    if (!text) return;
-
-    const newLesson = {
-      id: 'custom-' + Date.now(),
-      category: 'daily',
-      title,
-      text,
-      ipa: '',
-      translation,
-      tips: '【自訂句子】練習時仔細注意這句話的生字音節與整體調速。',
-      difficulty: '自訂',
-      recommendedEchoPauseSec: 3.0
-    };
-
-    this.lessonsList.unshift(newLesson);
-    this.modalCustom.classList.remove('open');
-    this.formCustomLesson.reset();
-    this.renderLessonCards();
-    this.loadLesson(newLesson);
+  toggleAllSegments() {
+    const hasDisabled = this.segments.some(s => s.enabled === false);
+    // If any are disabled, turn all ON. If all are enabled, turn all OFF.
+    const targetState = hasDisabled ? true : false;
+    this.segments.forEach(s => s.enabled = targetState);
+    this.renderSegmentList();
+    this.waveform.render();
+    this.saveCurrentState();
+    this.showToast(targetState ? '已勾選全部段落參與練習！' : '已取消勾選全部段落！');
   }
 
-  setupSegmentPanel() {
-    const panel = document.getElementById('segment-panel');
-    const container = document.getElementById('segments-list');
-    if (!panel || !container) return;
-
-    panel.style.display = 'block';
-    container.innerHTML = '';
-
-    const segments = this.audioEngine.generateAudioSegments(4.0);
-    if (segments.length === 0) return;
-
-    segments.forEach((seg, idx) => {
-      const chip = document.createElement('button');
-      chip.className = `cat-chip ${idx === 0 ? 'active' : ''}`;
-      chip.textContent = seg.label;
-      chip.addEventListener('click', () => {
-        container.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        this.segStartInput.value = seg.start;
-        this.segEndInput.value = seg.end;
-        this.elEchoStatusText.textContent = `切換至 ${seg.label}`;
-      });
-      container.appendChild(chip);
-    });
-
-    // 預設填入第一句區段
-    this.segStartInput.value = segments[0].start;
-    this.segEndInput.value = segments[0].end;
-  }
-
-  adjustTime(type, delta) {
-    if (type === 'start') {
-      let val = Math.max(0, (parseFloat(this.segStartInput.value) || 0) + delta);
-      this.segStartInput.value = val.toFixed(1);
-    } else {
-      let val = Math.max(0, (parseFloat(this.segEndInput.value) || 0) + delta);
-      this.segEndInput.value = val.toFixed(1);
+  scrollSegmentIntoView(idx) {
+    const items = this.dom.segmentItemsList.children;
+    if (items[idx]) {
+      items[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
+  }
+
+  previewSegment(idx) {
+    const seg = this.segments[idx];
+    this.waveform.setActiveSegment(idx);
+    this.audioEngine.playSegment(seg.start, seg.end, this.audioEngine.playbackRate, (t) => {
+      this.waveform.setCurrentTime(t);
+    });
+  }
+
+  mergeWithNext(idx) {
+    if (idx >= this.segments.length - 1) return;
+    const current = this.segments[idx];
+    const next = this.segments[idx + 1];
+
+    current.end = next.end;
+    if (next.jp) current.jp = (current.jp ? current.jp + ' ' : '') + next.jp;
+    if (next.zh) current.zh = (current.zh ? current.zh + ' ' : '') + next.zh;
+
+    this.segments.splice(idx + 1, 1);
+    this.waveform.setSegments(this.segments);
+    this.renderSegmentList();
+    this.saveCurrentState();
+    this.showToast(`已成功合併第 ${idx + 1} 與第 ${idx + 2} 句`);
+  }
+
+  /**
+   * Modal Segment Editor
+   */
+  openEditModal(idx) {
+    this.editingIdx = idx;
+    const seg = this.segments[idx];
+
+    this.dom.modalSegTitle.innerText = `編輯第 ${idx + 1} 句時間與字卡`;
+    // If it contains ruby tags, convert to friendly bracket format
+    this.dom.editJpInput.value = FuriganaParser.toBracketFormat(seg.jp);
+    this.dom.editZhInput.value = seg.zh || '';
+    this.dom.modalStartTime.innerText = `${seg.start.toFixed(2)}s`;
+    this.dom.modalEndTime.innerText = `${seg.end.toFixed(2)}s`;
+
+    this.updateModalRubyPreview();
+    this.dom.editModal.style.display = 'flex';
+  }
+
+  closeEditModal() {
+    this.dom.editModal.style.display = 'none';
+    this.editingIdx = -1;
+  }
+
+  updateModalRubyPreview() {
+    const text = this.dom.editJpInput.value;
+    const html = FuriganaParser.toRubyHtml(text);
+    this.dom.modalRubyPreview.innerHTML = html || '<span style="color:#64748b">輸入例如「私[わたし]」即時呈現振假名</span>';
+  }
+
+  wrapSelectionWithRuby() {
+    const input = this.dom.editJpInput;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const selected = input.value.substring(start, end);
+
+    if (!selected) {
+      alert('請先在輸入框中選取漢字，再點選此按鈕！');
+      return;
+    }
+
+    const replacement = `${selected}[ふりがな]`;
+    input.value = input.value.substring(0, start) + replacement + input.value.substring(end);
+    this.updateModalRubyPreview();
+    input.focus();
+    // Select the placeholder "ふりがな" so user can immediately type kana
+    input.setSelectionRange(start + selected.length + 1, start + selected.length + 5);
+  }
+
+  nudgeModalTime(type, delta) {
+    if (this.editingIdx === -1) return;
+    const seg = this.segments[this.editingIdx];
+
+    if (type === 'start') {
+      const newStart = Math.max(0, seg.start + delta);
+      if (newStart < seg.end - 0.2) {
+        seg.start = parseFloat(newStart.toFixed(2));
+      }
+    } else if (type === 'end') {
+      const newEnd = Math.min(this.audioEngine.audioBuffer.duration, seg.end + delta);
+      if (newEnd > seg.start + 0.2) {
+        seg.end = parseFloat(newEnd.toFixed(2));
+      }
+    }
+
+    this.dom.modalStartTime.innerText = `${seg.start.toFixed(2)}s`;
+    this.dom.modalEndTime.innerText = `${seg.end.toFixed(2)}s`;
+    this.waveform.render();
+  }
+
+  splitSegmentFromModal() {
+    if (this.editingIdx === -1) return;
+    const seg = this.segments[this.editingIdx];
+    const duration = seg.end - seg.start;
+    if (duration < 1.0) {
+      alert('此段落太短（小於1秒），無法拆分！');
+      return;
+    }
+
+    const mid = parseFloat((seg.start + duration / 2).toFixed(2));
+    const newSeg = {
+      start: mid,
+      end: seg.end,
+      jp: '',
+      zh: ''
+    };
+    seg.end = mid;
+
+    this.segments.splice(this.editingIdx + 1, 0, newSeg);
+    this.closeEditModal();
+    this.waveform.setSegments(this.segments);
+    this.renderSegmentList();
+    this.saveCurrentState();
+    this.showToast(`已拆分為兩段：${seg.start}s~${mid}s 與 ${mid}s~${newSeg.end}s`);
+  }
+
+  saveEditModal() {
+    if (this.editingIdx === -1) return;
+    const seg = this.segments[this.editingIdx];
+
+    const rawJp = this.dom.editJpInput.value.trim();
+    seg.jp = FuriganaParser.toRubyHtml(rawJp);
+    seg.zh = this.dom.editZhInput.value.trim();
+
+    this.closeEditModal();
+    this.renderSegmentList();
+    this.saveCurrentState();
+    this.showToast('段落文字與時間已儲存！');
+  }
+
+  saveCurrentState() {
+    if (!this.currentFileName) return;
+    StorageManager.saveProject(this.currentFileName, this.segments, {
+      maxLoop: this.maxLoop,
+      playbackRate: this.audioEngine.playbackRate,
+      echoWaitDuration: this.echoWaitDuration,
+      autoAdvance: this.autoAdvance
+    });
+  }
+
+  showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerText = msg;
+    this.dom.toastContainer.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s';
+      setTimeout(() => toast.remove(), 300);
+    }, 2800);
   }
 }
 
-// 初始化應用程式
-document.addEventListener('DOMContentLoaded', () => {
-  window.app = new EchoApp();
+// Instantiate on DOM load
+window.addEventListener('DOMContentLoaded', () => {
+  window.app = new EchoTrainerApp();
 });
