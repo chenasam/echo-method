@@ -49,12 +49,53 @@ class AudioEngine {
   }
 
   /**
+   * Safe ArrayBuffer reader (supporting FileReader fallback for older iOS Safari)
+   */
+  async readFileAsArrayBuffer(file) {
+    if (typeof file.arrayBuffer === 'function') {
+      try {
+        return await file.arrayBuffer();
+      } catch (e) {
+        console.warn('file.arrayBuffer failed, falling back to FileReader:', e);
+      }
+    }
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = (e) => reject(new Error('讀取音訊檔案失敗: ' + (e.message || 'FileReader error')));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  /**
+   * Cross-browser decodeAudioData wrapper for WebKit / iOS Safari compatibility
+   */
+  decodeAudioDataCompat(arrayBuffer) {
+    return new Promise((resolve, reject) => {
+      // Create a copy of the buffer in case WebKit detaches the original
+      const bufferCopy = arrayBuffer.slice(0);
+      try {
+        const res = this.audioCtx.decodeAudioData(
+          bufferCopy,
+          (decoded) => resolve(decoded),
+          (err) => reject(err)
+        );
+        if (res && typeof res.then === 'function') {
+          res.then(resolve).catch(reject);
+        }
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  /**
    * Decode an audio File or ArrayBuffer
    */
   async loadAudioFile(file) {
     await this.ensureAudioContext();
-    const arrayBuffer = await file.arrayBuffer();
-    this.audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+    const arrayBuffer = await this.readFileAsArrayBuffer(file);
+    this.audioBuffer = await this.decodeAudioDataCompat(arrayBuffer);
 
     // Setup native audio source for smooth seeking
     if (this.nativeAudio.src && this.nativeAudio.src.startsWith('blob:')) {
@@ -71,7 +112,7 @@ class AudioEngine {
     await this.ensureAudioContext();
     const resp = await fetch(url);
     const arrayBuffer = await resp.arrayBuffer();
-    this.audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+    this.audioBuffer = await this.decodeAudioDataCompat(arrayBuffer);
 
     if (this.nativeAudio.src && this.nativeAudio.src.startsWith('blob:')) {
       URL.revokeObjectURL(this.nativeAudio.src);

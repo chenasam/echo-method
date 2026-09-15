@@ -75,11 +75,10 @@ class EchoTrainerApp {
     this.dom.btnRepeatSeg = document.getElementById('btnRepeatSeg');
     this.dom.loopDisplay = document.getElementById('loopDisplay');
 
-    // Settings
-    this.dom.repeatSelect = document.getElementById('repeatSelect');
-    this.dom.speedSelect = document.getElementById('speedSelect');
-    this.dom.echoWaitSelect = document.getElementById('echoWaitSelect');
-    this.dom.mimicTimeSelect = document.getElementById('mimicTimeSelect');
+    // Settings Drawer
+    this.dom.settingsDrawerCard = document.getElementById('settingsDrawerCard');
+    this.dom.settingsDrawerHeader = document.getElementById('settingsDrawerHeader');
+    this.dom.btnCollapseDrawer = document.getElementById('btnCollapseDrawer');
     this.dom.autoFlowToggle = document.getElementById('autoFlowToggle');
     this.dom.thresholdSlider = document.getElementById('thresholdSlider');
     this.dom.thresholdValue = document.getElementById('thresholdValue');
@@ -131,8 +130,21 @@ class EchoTrainerApp {
 
   bindEvents() {
     // Audio upload
-    this.dom.btnSelectAudio.onclick = () => this.dom.audioFileInput.click();
-    this.dom.audioFileInput.onchange = (e) => this.handleAudioFile(e.target.files[0]);
+    if (this.dom.btnSelectAudio) {
+      this.dom.btnSelectAudio.addEventListener('click', () => {
+        // Unlock AudioContext on direct user tap (critical for iOS Safari)
+        this.audioEngine.ensureAudioContext().catch(() => {});
+        if (this.dom.btnSelectAudio.tagName !== 'LABEL') {
+          this.dom.audioFileInput.click();
+        }
+      });
+    }
+    this.dom.audioFileInput.onchange = (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        this.handleAudioFile(e.target.files[0]);
+      }
+      this.dom.audioFileInput.value = '';
+    };
     if (this.dom.btnLoadDemo) {
       this.dom.btnLoadDemo.onclick = () => this.loadDemoExperience();
     }
@@ -180,34 +192,8 @@ class EchoTrainerApp {
       this.dom.btnToggleAllSegs.onclick = () => this.toggleAllSegments();
     }
 
-    // Settings
-    this.dom.repeatSelect.onchange = (e) => {
-      this.maxLoop = parseInt(e.target.value, 10);
-      this.updateLoopDisplay();
-    };
-    this.dom.speedSelect.onchange = (e) => {
-      this.audioEngine.playbackRate = parseFloat(e.target.value);
-    };
-    this.dom.echoWaitSelect.onchange = (e) => {
-      this.echoWaitDuration = parseFloat(e.target.value);
-    };
-    if (this.dom.mimicTimeSelect) {
-      this.dom.mimicTimeSelect.onchange = (e) => {
-        this.mimicTimeMode = e.target.value;
-        const modeDesc = {
-          '1.4': '常速緊湊模式',
-          '1.8': '標準充裕模式',
-          '2.5': '加倍放慢模式',
-          'manual': '手動結束模式（說完請按 Space 鍵）'
-        };
-        this.showToast(`已切換開口時長：${modeDesc[this.mimicTimeMode] || this.mimicTimeMode}`);
-        this.saveCurrentState();
-      };
-    }
-    this.dom.autoFlowToggle.onchange = (e) => {
-      this.autoAdvance = e.target.checked;
-      this.showToast(this.autoAdvance ? '已啟用「自動心流巡航」' : '已切換為「自主步調學習」');
-    };
+    // Settings Drawer
+    this.initSettingsDrawer();
 
     // Silence detection sliders
     this.dom.thresholdSlider.oninput = (e) => {
@@ -230,6 +216,91 @@ class EchoTrainerApp {
     document.getElementById('nudgeStartPlus').onclick = () => this.nudgeModalTime('start', 0.1);
     document.getElementById('nudgeEndMinus').onclick = () => this.nudgeModalTime('end', -0.1);
     document.getElementById('nudgeEndPlus').onclick = () => this.nudgeModalTime('end', 0.1);
+  }
+
+  initSettingsDrawer() {
+    const card = this.dom.settingsDrawerCard;
+    const header = this.dom.settingsDrawerHeader;
+    const collapseBtn = this.dom.btnCollapseDrawer;
+
+    if (header && card) {
+      header.onclick = () => {
+        card.classList.toggle('is-open');
+        const hint = document.getElementById('drawerToggleText');
+        if (hint) hint.innerText = card.classList.contains('is-open') ? '收起 ▴' : '設定 ▾';
+      };
+    }
+    if (collapseBtn && card) {
+      collapseBtn.onclick = (e) => {
+        e.stopPropagation();
+        card.classList.remove('is-open');
+        const hint = document.getElementById('drawerToggleText');
+        if (hint) hint.innerText = '設定 ▾';
+      };
+    }
+
+    // Bind all segmented pill buttons
+    document.querySelectorAll('.pill-group').forEach(group => {
+      const prefType = group.dataset.pref;
+      const buttons = group.querySelectorAll('.pill-btn');
+
+      buttons.forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          buttons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const val = btn.dataset.val;
+
+          if (prefType === 'repeat') {
+            this.maxLoop = parseInt(val, 10);
+            this.updateLoopDisplay();
+            this.updateDrawerSummary();
+            this.showToast(`已切換單句重複：${this.maxLoop} 次`);
+          } else if (prefType === 'speed') {
+            this.audioEngine.playbackRate = parseFloat(val);
+            this.updateDrawerSummary();
+            this.showToast(`已切換語速：${val}x`);
+          } else if (prefType === 'echoWait') {
+            this.echoWaitDuration = parseFloat(val);
+            this.updateDrawerSummary();
+            this.showToast(`已設定回音留白：${val} 秒`);
+          } else if (prefType === 'mimicTime') {
+            this.mimicTimeMode = val;
+            this.updateDrawerSummary();
+            const desc = val === 'manual' ? '手動結束模式（說完請按 Space 鍵或按鈕）' : `${val}x 倍率`;
+            this.showToast(`已切換開口時長：${desc}`);
+          }
+        };
+      });
+    });
+
+    // Auto Flow Cruise Toggle
+    if (this.dom.autoFlowToggle) {
+      this.dom.autoFlowToggle.onchange = (e) => {
+        this.autoAdvance = e.target.checked;
+        this.updateDrawerSummary();
+        this.showToast(this.autoAdvance ? '已啟用「自動心流巡航」' : '已切換為「自主步調學習」');
+      };
+    }
+
+    this.updateDrawerSummary();
+  }
+
+  updateDrawerSummary() {
+    const pillRepeat = document.getElementById('pillSummaryRepeat');
+    const pillSpeed = document.getElementById('pillSummarySpeed');
+    const pillEcho = document.getElementById('pillSummaryEcho');
+    const pillMimic = document.getElementById('pillSummaryMimic');
+    const pillFlow = document.getElementById('pillSummaryFlow');
+
+    if (pillRepeat) pillRepeat.innerText = `${this.maxLoop}次`;
+    if (pillSpeed) pillSpeed.innerText = `${this.audioEngine.playbackRate}x`;
+    if (pillEcho) pillEcho.innerText = `留白${this.echoWaitDuration}s`;
+    if (pillMimic) pillMimic.innerText = this.mimicTimeMode === 'manual' ? '手動' : `摹${this.mimicTimeMode}x`;
+    if (pillFlow) {
+      pillFlow.innerText = this.autoAdvance ? '巡航ON' : '自主步調';
+      pillFlow.className = `mini-pill ${this.autoAdvance ? 'pill-flow-on' : 'pill-flow-off'}`;
+    }
   }
 
   bindKeyboardShortcuts() {
