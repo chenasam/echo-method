@@ -595,6 +595,9 @@ class EchoTrainerApp {
       return;
     }
 
+    // Ensure AudioContext and HTML5 Audio are pre-unlocked on direct user gesture
+    await this.audioEngine.ensureAudioContext();
+
     // Initialize microphone permissions
     const micOk = await this.audioEngine.setupMic();
     if (!micOk) {
@@ -926,6 +929,9 @@ class EchoTrainerApp {
       () => {
         this.dom.btnCompareAll.innerHTML = '⚡ 連續對比 (原音 ➔ 己音)';
         if (onComplete) onComplete();
+      },
+      (currTime) => {
+        if (this.waveform) this.waveform.setCurrentTime(currTime);
       }
     );
   }

@@ -9,8 +9,10 @@ class AudioEngine {
     this.audioCtx = null;
     this.audioBuffer = null;
     this.audioSourceNode = null;
+    this.currentSourceNode = null;
     this.mediaRecorder = null;
     this.recordedChunks = [];
+    this.recordingMimeType = '';
     this.userVoiceBlob = null;
     this.userVoiceUrl = null;
     this.micStream = null;
@@ -49,8 +51,20 @@ class AudioEngine {
     // Warm up selfAudio to unlock iOS Safari autoplay restrictions
     try {
       if (!this.selfAudioUnlocked) {
-        this.selfAudio.load();
-        this.selfAudioUnlocked = true;
+        // Unlock HTML5 Audio autoplay policy across iOS Safari and Chrome
+        // Using a 1-sample silent WAV data URI so it doesn't make any sound but fully unlocks playback
+        this.selfAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+        const p = this.selfAudio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            this.selfAudio.pause();
+            this.selfAudio.currentTime = 0;
+            this.selfAudioUnlocked = true;
+          }).catch(() => {});
+        } else {
+          this.selfAudio.pause();
+          this.selfAudioUnlocked = true;
+        }
       }
     } catch (e) {}
     return this.audioCtx;
@@ -227,16 +241,88 @@ class AudioEngine {
 
   /**
    * Play specific slice of the original audio
+   * Uses Web Audio API AudioBufferSourceNode as primary engine for sample-accurate, zero-latency playback
+   * with HTML5 Audio as a safe fallback.
    */
   playSegment(start, end, rate = 1.0, onProgress = null, onEnded = null) {
     this.stopPlayback();
     this.isPlaying = true;
     this.playbackRate = rate;
 
-    this.nativeAudio.playbackRate = rate;
-    this.nativeAudio.currentTime = Math.max(0, start);
+    const safeStart = Math.max(0, start);
+    const safeEnd = Math.max(safeStart + 0.05, end);
+    const duration = (safeEnd - safeStart) / rate;
 
+    // 1. Primary Engine: Web Audio API (zero seeking latency, no race conditions)
+    if (this.audioCtx && this.audioBuffer) {
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+
+      let source = null;
+      try {
+        source = this.audioCtx.createBufferSource();
+        source.buffer = this.audioBuffer;
+        source.playbackRate.value = rate;
+        source.connect(this.audioCtx.destination);
+        this.currentSourceNode = source;
+      } catch (err) {
+        console.warn('Failed to create buffer source node:', err);
+        source = null;
+        this.currentSourceNode = null;
+      }
+
+      if (source) {
+        const ctxStartTime = this.audioCtx.currentTime;
+        let animFrameId = null;
+        let endedCalled = false;
+
+        const finish = () => {
+          if (endedCalled) return;
+          endedCalled = true;
+          if (animFrameId) {
+            cancelAnimationFrame(animFrameId);
+            animFrameId = null;
+          }
+          this.isPlaying = false;
+          this.currentSourceNode = null;
+          if (onEnded) onEnded();
+        };
+
+        source.onended = () => {
+          if (this.isPlaying && !endedCalled) {
+            finish();
+          }
+        };
+
+        try {
+          source.start(0, safeStart, duration);
+        } catch (err) {
+          console.warn('Web Audio source.start failed, will use fallback:', err);
+          this.currentSourceNode = null;
+        }
+
+        if (this.currentSourceNode) {
+          if (onProgress) {
+            const updateProgress = () => {
+              if (!this.isPlaying || endedCalled) return;
+              const elapsed = (this.audioCtx.currentTime - ctxStartTime) * rate;
+              const curTime = Math.min(safeEnd, safeStart + elapsed);
+              onProgress(curTime);
+              if (curTime < safeEnd) {
+                animFrameId = requestAnimationFrame(updateProgress);
+              }
+            };
+            animFrameId = requestAnimationFrame(updateProgress);
+          }
+          return;
+        }
+      }
+    }
+
+    // 2. Fallback Engine: HTML5 Audio with bulletproof seeked & error guard
     let checkInterval = null;
+    let endedCalled = false;
 
     const cleanup = () => {
       if (checkInterval) {
@@ -244,53 +330,68 @@ class AudioEngine {
         checkInterval = null;
       }
       this.nativeAudio.removeEventListener('ended', handleEnded);
-      this.nativeAudio.removeEventListener('pause', handlePause);
     };
 
-    const handleEnded = () => {
+    const finish = () => {
+      if (endedCalled) return;
+      endedCalled = true;
       cleanup();
       this.isPlaying = false;
       if (onEnded) onEnded();
     };
 
-    const handlePause = () => {
-      if (this.nativeAudio.currentTime >= end - 0.05) {
-        cleanup();
-        this.isPlaying = false;
-        if (onEnded) onEnded();
-      }
-    };
-
+    const handleEnded = () => finish();
     this.nativeAudio.addEventListener('ended', handleEnded);
-    this.nativeAudio.addEventListener('pause', handlePause);
+
+    this.nativeAudio.playbackRate = rate;
+    let seekComplete = false;
+
+    const onSeeked = () => {
+      seekComplete = true;
+      this.nativeAudio.removeEventListener('seeked', onSeeked);
+    };
+    this.nativeAudio.addEventListener('seeked', onSeeked);
+
+    try {
+      this.nativeAudio.currentTime = safeStart;
+      if (Math.abs(this.nativeAudio.currentTime - safeStart) < 0.1) {
+        seekComplete = true;
+      }
+    } catch (e) {}
 
     checkInterval = setInterval(() => {
-      if (!this.isPlaying) {
+      if (!this.isPlaying || endedCalled) {
         cleanup();
         return;
       }
-      const cur = this.nativeAudio.currentTime;
-      if (onProgress) {
-        onProgress(cur);
+      // Wait for seek to complete before evaluating end time
+      if (!seekComplete && Math.abs(this.nativeAudio.currentTime - safeStart) > 0.3) {
+        return;
       }
-      if (cur >= end) {
-        this.nativeAudio.pause();
-        cleanup();
-        this.isPlaying = false;
-        if (onEnded) onEnded();
+      seekComplete = true;
+      const cur = this.nativeAudio.currentTime;
+      if (onProgress) onProgress(cur);
+      if (cur >= safeEnd - 0.03) {
+        try { this.nativeAudio.pause(); } catch (e) {}
+        finish();
       }
     }, 25);
 
     this.nativeAudio.play().catch(e => {
-      console.warn('Playback interrupted or blocked:', e);
-      cleanup();
-      this.isPlaying = false;
-      if (onEnded) onEnded();
+      console.warn('Native audio playback interrupted or blocked:', e);
+      finish();
     });
   }
 
   stopPlayback() {
     this.isPlaying = false;
+    if (this.currentSourceNode) {
+      try {
+        this.currentSourceNode.onended = null;
+        this.currentSourceNode.stop();
+      } catch (e) {}
+      this.currentSourceNode = null;
+    }
     try {
       this.nativeAudio.pause();
     } catch (e) {}
@@ -330,6 +431,9 @@ class AudioEngine {
   /**
    * Start recording user voice
    */
+  /**
+   * Start recording user voice
+   */
   startRecording(onMeterUpdate = null) {
     if (!this.micStream) return false;
 
@@ -344,6 +448,7 @@ class AudioEngine {
         mimeType = '';
       }
     }
+    this.recordingMimeType = mimeType;
 
     const options = mimeType ? { mimeType } : {};
     try {
@@ -359,13 +464,16 @@ class AudioEngine {
     };
 
     this.mediaRecorder.onstop = () => {
-      const type = this.mediaRecorder.mimeType || 'audio/webm';
+      const type = this.recordingMimeType || this.mediaRecorder.mimeType || 'audio/webm';
       this.userVoiceBlob = new Blob(this.recordedChunks, { type });
       if (this.userVoiceUrl) {
         URL.revokeObjectURL(this.userVoiceUrl);
       }
       this.userVoiceUrl = URL.createObjectURL(this.userVoiceBlob);
       this.selfAudio.src = this.userVoiceUrl;
+      try {
+        this.selfAudio.load();
+      } catch (e) {}
     };
 
     this.mediaRecorder.start(100);
@@ -424,22 +532,58 @@ class AudioEngine {
       return;
     }
     this.stopPlayback();
-    this.selfAudio.currentTime = 0;
-    this.selfAudio.onended = () => {
+    this.isPlaying = true;
+
+    let finished = false;
+    let safetyTimer = null;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (safetyTimer) {
+        clearTimeout(safetyTimer);
+        safetyTimer = null;
+      }
+      this.selfAudio.removeEventListener('ended', handleEnded);
+      this.selfAudio.removeEventListener('error', handleError);
+      this.isPlaying = false;
       if (onEnded) onEnded();
     };
-    this.selfAudio.play().catch(e => {
-      console.warn('Self audio playback error or iOS gesture policy', e);
-      if (onEnded) onEnded();
-    });
+
+    const handleEnded = () => finish();
+    const handleError = (e) => {
+      console.warn('Self audio playback error or unsupported format:', e);
+      finish();
+    };
+
+    this.selfAudio.addEventListener('ended', handleEnded);
+    this.selfAudio.addEventListener('error', handleError);
+
+    try {
+      this.selfAudio.currentTime = 0;
+    } catch (e) {}
+
+    // Safety timeout: prevents hang if audio playback does not trigger onended
+    safetyTimer = setTimeout(() => {
+      console.warn('Self audio playback safety timeout fired');
+      finish();
+    }, 25000);
+
+    const playPromise = this.selfAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(e => {
+        console.warn('Self audio playback rejected by browser:', e);
+        finish();
+      });
+    }
   }
 
   /**
    * Dual Sequential Playback: "Original -> Pause 350ms -> User Voice"
    */
-  playCompareSequence(start, end, rate = 1.0, onStep = null, onFinish = null) {
+  playCompareSequence(start, end, rate = 1.0, onStep = null, onFinish = null, onProgress = null) {
     if (onStep) onStep('origin');
-    this.playSegment(start, end, rate, null, () => {
+    this.playSegment(start, end, rate, onProgress, () => {
       if (onStep) onStep('gap');
       setTimeout(() => {
         if (this.userVoiceUrl) {
