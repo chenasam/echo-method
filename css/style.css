@@ -126,7 +126,11 @@ body {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* File Upload & Audio Bar */
+/* Audio Control Card & File Upload Bar */
+.audio-control-card {
+  padding: 16px 20px;
+}
+
 .file-bar {
   display: flex;
   flex-wrap: wrap;
@@ -135,28 +139,60 @@ body {
   justify-content: space-between;
 }
 
+.file-bar-btns {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-audio-action {
+  min-height: 38px;
+  padding: 8px 15px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+
 .file-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .file-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 6px 12px;
   border-radius: var(--radius-full);
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.file-name-badge {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-name-badge #audioFileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-badge-icon {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.file-duration-badge {
+  color: var(--text-secondary);
 }
 
 /* Buttons */
@@ -246,7 +282,7 @@ body {
 /* Waveform Container */
 .waveform-section {
   position: relative;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .waveform-header {
@@ -254,18 +290,86 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
+.waveform-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.waveform-main-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.waveform-sub-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Collapsible Toggle Capsule Button */
+.btn-toggle-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
+}
+
+.btn-toggle-controls:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(244, 63, 94, 0.4);
+  color: var(--text-primary);
+}
+
+.btn-toggle-controls.active {
+  background: rgba(244, 63, 94, 0.16);
+  border-color: rgba(244, 63, 94, 0.5);
+  color: #fda4af;
+}
+
+.toggle-summary {
+  font-family: monospace;
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fda4af;
+}
+
+.toggle-arrow {
+  font-size: 9px;
+  transition: transform 0.2s ease;
+}
+
+.btn-toggle-controls.active .toggle-arrow {
+  transform: rotate(180deg);
+}
+
+/* Waveform Canvas Box - Sleek Proportional Height */
 .waveform-canvas-box {
   position: relative;
   width: 100%;
-  height: 110px;
-  background: #070a12;
+  height: 88px;
+  background: #060911;
   border-radius: var(--radius-md);
   overflow: hidden;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 #waveformCanvas {
@@ -274,25 +378,93 @@ body {
   display: block;
 }
 
+/* Collapsible Waveform Controls (極簡折疊收合) */
 .waveform-controls {
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, margin 0.25s ease;
+}
+
+.waveform-controls.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  pointer-events: none;
+}
+
+.waveform-controls:not(.collapsed) {
+  max-height: 160px;
+  opacity: 1;
+  margin-top: 10px;
+  pointer-events: auto;
+}
+
+.waveform-controls-inner {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
 }
 
 .slider-group {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+}
+
+.slider-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
 
 .slider-group input[type="range"] {
-  accent-color: var(--primary);
+  flex: 1;
+  min-width: 0;
   height: 4px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.slider-val {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #fda4af;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Modern Frosted Glass Redetect Button */
+.btn-redetect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 14px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: var(--transition);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-redetect:hover {
+  background: rgba(244, 63, 94, 0.2);
+  border-color: rgba(244, 63, 94, 0.45);
+  color: white;
 }
 
 /* 5-Step Echo Method Dashboard */
@@ -966,11 +1138,32 @@ input:checked + .toggle-slider:before {
   margin-top: 2px;
 }
 
+.segment-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.segment-text-col {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
 .seg-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.seg-action-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Modals */
@@ -1150,19 +1343,84 @@ input:checked + .toggle-slider:before {
     margin-bottom: 14px;
   }
 
+  /* Header Actions on Mobile (2x2 寬敞大按鈕格局，杜絕擠壓與 11px 小字) */
   .header-actions {
-    display: flex;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
     width: 100%;
   }
 
   .header-actions .btn,
   .header-actions label.btn {
-    flex: 1;
-    font-size: 11px;
-    padding: 8px 4px;
+    min-height: 44px;
+    font-size: 13.5px;
+    font-weight: 700;
+    padding: 10px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .header-actions > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  /* File Bar on Mobile (流順雙欄排版與防截斷標籤) */
+  .audio-control-card {
+    padding: 14px 12px;
+  }
+
+  .file-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .file-bar-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .btn-audio-action {
+    min-height: 44px;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 8px 6px;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm);
+  }
+
+  .file-info {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    justify-content: space-between;
+  }
+
+  .file-name-badge {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .file-name-badge #audioFileName {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .file-duration-badge {
+    flex-shrink: 0;
+    font-size: 12px;
+    padding: 6px 10px;
   }
 
   .glass-card {
@@ -1171,84 +1429,47 @@ input:checked + .toggle-slider:before {
     margin-bottom: 14px;
   }
 
-  /* Waveform Header & Controls on Mobile (專門解決 iPhone 13 mini 靜音與換氣超格問題) */
+  /* Waveform Header & Controls on Mobile */
   .waveform-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
   }
 
-  .waveform-header span:first-child {
+  .waveform-main-title {
     font-size: 12px;
-    font-weight: 600;
   }
 
-  #waveformStats {
+  .waveform-sub-hint {
+    display: none;
+  }
+
+  .btn-toggle-controls {
+    padding: 3px 8px;
     font-size: 11px;
   }
 
-  .waveform-controls {
-    display: flex;
+  .waveform-controls-inner {
     flex-direction: column;
     gap: 10px;
-    margin-top: 10px;
-    padding: 12px;
-    background: rgba(15, 23, 42, 0.65);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-sm);
-    width: 100%;
-    box-sizing: border-box;
+    padding: 10px 12px;
   }
 
   .slider-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
     width: 100%;
-    box-sizing: border-box;
-  }
-
-  .slider-group span:first-child {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    min-width: 58px;
-    flex-shrink: 0;
   }
 
   .slider-group input[type="range"] {
     flex: 1;
-    min-width: 0; /* 關鍵：強制 flex 項目在 iPhone 13 mini 小螢幕時自適應收縮，絕不溢出超格 */
+    min-width: 0;
+    height: 6px;
+  }
+
+  .btn-redetect {
     width: 100%;
-    height: 8px;
-    accent-color: var(--primary);
-    cursor: pointer;
-  }
-
-  .slider-group span:last-child {
-    font-size: 12px;
-    font-weight: 700;
-    color: #fda4af;
-    min-width: 44px;
-    text-align: right;
-    flex-shrink: 0;
-    font-variant-numeric: tabular-nums;
-  }
-
-  #btnRedetect {
-    width: 100%;
-    margin-left: 0 !important;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px dashed rgba(255, 255, 255, 0.18);
-    padding: 8px 12px;
-    font-size: 12px;
-    border-radius: var(--radius-sm);
-  }
-
-  #btnRedetect:active {
-    background: rgba(255, 255, 255, 0.12);
+    min-height: 40px;
+    font-size: 13px;
   }
 
   /* Mobile Settings Drawer Enhancements */
@@ -1365,17 +1586,76 @@ input:checked + .toggle-slider:before {
     padding: 12px;
   }
 
+  /* Segment List Items on Mobile (徹底修復 🔗 合併圖示超過手機邊界問題) */
+  .segment-item {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .segment-body {
+    width: 100%;
+  }
+
+  .seg-meta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .seg-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  }
+
+  .seg-action-btn {
+    flex: 1;
+    min-height: 40px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Modals on Mobile */
+  .modal-dialog {
+    padding: 18px 14px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .timing-nudges {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .modal-footer .btn {
+    min-height: 42px;
+    font-size: 13.5px;
+  }
+
   /* Hide Desktop Training Toolbar on Mobile */
   .training-toolbar {
     display: none;
   }
 
-  /* Mobile Fixed Bottom Action Bar (Thumb Reach) */
+  /* Mobile Fixed Bottom Action Bar (大尺寸大圖示觸控升級) */
   .mobile-bottom-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -1384,14 +1664,15 @@ input:checked + .toggle-slider:before {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid rgba(255, 255, 255, 0.12);
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 12px)) 14px;
+    padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 12px)) 10px;
     z-index: 999;
     box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.6);
   }
 
   .mobile-main-btn {
     flex: 1;
-    height: 48px;
+    min-width: 0;
+    height: 52px;
     font-size: 15px;
     font-weight: 700;
     border-radius: var(--radius-md);
@@ -1406,12 +1687,16 @@ input:checked + .toggle-slider:before {
   }
 
   .mobile-btn-icon {
-    width: 44px;
-    height: 48px;
+    width: 50px;
+    height: 52px;
     padding: 0;
-    font-size: 16px;
+    font-size: 22px;
+    line-height: 1;
     border-radius: var(--radius-md);
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   @keyframes pulseGlow {
@@ -1477,14 +1762,22 @@ input:checked + .toggle-slider:before {
     padding: 8px 4px !important;
   }
 
+  .file-bar-btns .btn,
+  .file-bar-btns label.btn {
+    min-height: 48px !important;
+    font-size: 13px !important;
+    padding: 10px 4px !important;
+  }
+
+  .mobile-btn-icon {
+    width: 48px !important;
+    height: 52px !important;
+    font-size: 21px !important;
+  }
+
   .file-badge {
     padding: 4px 8px;
     font-size: 11px;
-  }
-
-  #btnSelectAudio, #btnLoadDemo {
-    font-size: 13px;
-    padding: 8px 12px;
   }
 }
 

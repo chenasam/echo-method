@@ -44,12 +44,12 @@ const StorageManager = {
   },
 
   /**
-   * Export segments as JSON (100% compatible with the PDF manual specification)
+   * Export segments as JSON (supports Web Share API on mobile & standard download fallback)
    */
-  exportJson(filename, segments) {
+  async exportJson(filename, segments) {
     if (!segments || !segments.length) {
       alert('目前沒有段落可匯出');
-      return;
+      return null;
     }
 
     const cleanSegments = segments.map(seg => ({
@@ -61,17 +61,37 @@ const StorageManager = {
     }));
 
     const jsonStr = JSON.stringify(cleanSegments, null, 2);
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
+    const finalName = `${baseName}_回音字卡.json`;
     const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
 
+    // Try iOS / Mobile native Web Share API
+    if (navigator.canShare) {
+      try {
+        const file = new File([blob], finalName, { type: 'application/json' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: finalName,
+            files: [file]
+          });
+          return { shared: true, filename: finalName };
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') return { cancelled: true };
+        console.warn('Web Share failed, falling back to download:', e);
+      }
+    }
+
+    // Standard download fallback
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
-    a.download = `${baseName}_回音字卡.json`;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    return { shared: false, filename: finalName };
   },
 
   /**
@@ -109,10 +129,10 @@ const StorageManager = {
    * Front: Japanese with HTML Ruby
    * Back: Chinese translation + Audio Time Range
    */
-  exportAnkiTsv(filename, segments) {
+  async exportAnkiTsv(filename, segments) {
     if (!segments || !segments.length) {
       alert('目前沒有段落可匯出');
-      return;
+      return null;
     }
 
     const rows = segments.map((seg, idx) => {
@@ -123,17 +143,37 @@ const StorageManager = {
     });
 
     const tsvContent = rows.join('\n');
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
+    const finalName = `${baseName}_Anki卡片.tsv`;
     const blob = new Blob([tsvContent], { type: 'text/tab-separated-values;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
 
+    // Try iOS / Mobile native Web Share API
+    if (navigator.canShare) {
+      try {
+        const file = new File([blob], finalName, { type: 'text/tab-separated-values' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: finalName,
+            files: [file]
+          });
+          return { shared: true, filename: finalName };
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') return { cancelled: true };
+        console.warn('Web Share failed, falling back to download:', e);
+      }
+    }
+
+    // Standard download fallback
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : '日文回音字卡';
-    a.download = `${baseName}_Anki卡片.tsv`;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    return { shared: false, filename: finalName };
   }
 };
 

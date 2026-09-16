@@ -180,14 +180,24 @@ class EchoTrainerApp {
     this.dom.btnPlaySelf.onclick = () => this.audioEngine.playSelfVoice();
     this.dom.btnCompareAll.onclick = () => this.playSequentialCompare();
 
-    // Export buttons
-    this.dom.btnExportJson.onclick = () => {
-      StorageManager.exportJson(this.currentFileName, this.segments);
-      this.showToast('已匯出 JSON 字卡檔！');
+    // Export buttons with iPhone Share Sheet & guidance
+    this.dom.btnExportJson.onclick = async () => {
+      const res = await StorageManager.exportJson(this.currentFileName, this.segments);
+      if (res && res.cancelled) return;
+      if (res && res.shared) {
+        this.showToast('✅ 已開啟分享面板！可直接儲存至【檔案】或傳送', 4000);
+      } else {
+        this.showToast('✅ 已匯出字卡！iPhone 請至【檔案】App 的【下載項目】查看', 4500);
+      }
     };
-    this.dom.btnExportAnki.onclick = () => {
-      StorageManager.exportAnkiTsv(this.currentFileName, this.segments);
-      this.showToast('已匯出 Anki 專用卡片檔！');
+    this.dom.btnExportAnki.onclick = async () => {
+      const res = await StorageManager.exportAnkiTsv(this.currentFileName, this.segments);
+      if (res && res.cancelled) return;
+      if (res && res.shared) {
+        this.showToast('✅ 已開啟分享面板！可直接儲存至【檔案】或傳送', 4000);
+      } else {
+        this.showToast('✅ 已匯出 Anki 卡片！iPhone 請至【檔案】App 的【下載項目】查看', 4500);
+      }
     };
     if (this.dom.btnToggleAllSegs) {
       this.dom.btnToggleAllSegs.onclick = () => this.toggleAllSegments();
@@ -196,14 +206,43 @@ class EchoTrainerApp {
     // Settings Drawer
     this.initSettingsDrawer();
 
-    // Silence detection sliders
-    this.dom.thresholdSlider.oninput = (e) => {
-      this.dom.thresholdValue.innerText = e.target.value;
+    // Silence detection sliders & collapsible controls
+    const btnToggleWaveformControls = document.getElementById('btnToggleWaveformControls');
+    const waveformControls = document.getElementById('waveformControls');
+    const toggleControlsArrow = document.getElementById('toggleControlsArrow');
+    const waveformControlsSummary = document.getElementById('waveformControlsSummary');
+
+    const updateControlsSummary = () => {
+      if (waveformControlsSummary && this.dom.thresholdSlider && this.dom.minSilenceSlider) {
+        waveformControlsSummary.innerText = `${this.dom.thresholdSlider.value} · ${this.dom.minSilenceSlider.value}s`;
+      }
     };
-    this.dom.minSilenceSlider.oninput = (e) => {
-      this.dom.minSilenceValue.innerText = `${e.target.value}s`;
-    };
-    this.dom.btnRedetect.onclick = () => this.redetectSegments();
+
+    if (btnToggleWaveformControls && waveformControls) {
+      btnToggleWaveformControls.onclick = () => {
+        const isCollapsed = waveformControls.classList.toggle('collapsed');
+        btnToggleWaveformControls.classList.toggle('active', !isCollapsed);
+        if (toggleControlsArrow) {
+          toggleControlsArrow.innerText = isCollapsed ? '▾' : '▴';
+        }
+      };
+    }
+
+    if (this.dom.thresholdSlider) {
+      this.dom.thresholdSlider.oninput = (e) => {
+        if (this.dom.thresholdValue) this.dom.thresholdValue.innerText = e.target.value;
+        updateControlsSummary();
+      };
+    }
+    if (this.dom.minSilenceSlider) {
+      this.dom.minSilenceSlider.oninput = (e) => {
+        if (this.dom.minSilenceValue) this.dom.minSilenceValue.innerText = `${e.target.value}s`;
+        updateControlsSummary();
+      };
+    }
+    if (this.dom.btnRedetect) {
+      this.dom.btnRedetect.onclick = () => this.redetectSegments();
+    }
 
     // Modal events
     this.dom.editJpInput.oninput = () => this.updateModalRubyPreview();
@@ -1018,23 +1057,25 @@ class EchoTrainerApp {
         : '<span style="color:#64748b; font-style: italic;">(點擊右側鉛筆標註文字)</span>';
 
       div.innerHTML = `
-        <label class="seg-checkbox-wrapper" title="${isEnabled ? '已包含在練習中（點擊取消）' : '已略過此句（點擊加入練習）'}" onclick="event.stopPropagation()">
-          <input type="checkbox" class="seg-checkbox" ${isEnabled ? 'checked' : ''} onchange="window.app.toggleSegmentEnabled(${idx}, event)">
-        </label>
-        <div style="flex: 1; cursor: pointer;" onclick="window.app.selectSegment(${idx}, false)">
-          <div class="seg-meta">
-            <span class="seg-index">#${idx + 1}</span>
-            ${!isEnabled ? '<span class="seg-skip-badge">略過不練</span>' : ''}
-            <span class="seg-tag">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s</span>
-            <span class="seg-tag" style="background: rgba(244,63,94,0.1); color:#fda4af;">${(seg.end - seg.start).toFixed(1)}s</span>
+        <div class="segment-body">
+          <label class="seg-checkbox-wrapper" title="${isEnabled ? '已包含在練習中（點擊取消）' : '已略過此句（點擊加入練習）'}" onclick="event.stopPropagation()">
+            <input type="checkbox" class="seg-checkbox" ${isEnabled ? 'checked' : ''} onchange="window.app.toggleSegmentEnabled(${idx}, event)">
+          </label>
+          <div class="segment-text-col" onclick="window.app.selectSegment(${idx}, false)">
+            <div class="seg-meta">
+              <span class="seg-index">#${idx + 1}</span>
+              ${!isEnabled ? '<span class="seg-skip-badge">略過不練</span>' : ''}
+              <span class="seg-tag">${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s</span>
+              <span class="seg-tag" style="background: rgba(244,63,94,0.1); color:#fda4af;">${(seg.end - seg.start).toFixed(1)}s</span>
+            </div>
+            <div class="seg-text">${rubyHtml}</div>
+            ${seg.zh ? `<div class="seg-zh">${seg.zh}</div>` : ''}
           </div>
-          <div class="seg-text">${rubyHtml}</div>
-          ${seg.zh ? `<div class="seg-zh">${seg.zh}</div>` : ''}
         </div>
         <div class="seg-actions">
-          <button class="btn btn-secondary btn-sm" title="試聽此句" onclick="window.app.previewSegment(${idx})">▶</button>
-          <button class="btn btn-secondary btn-sm" title="編輯文字與微調" onclick="window.app.openEditModal(${idx})">✏</button>
-          ${idx < this.segments.length - 1 ? `<button class="btn btn-secondary btn-sm" title="與下一句合併" onclick="window.app.mergeWithNext(${idx})">🔗</button>` : ''}
+          <button class="btn btn-secondary btn-sm seg-action-btn" title="試聽此句" onclick="window.app.previewSegment(${idx})">▶ 試聽</button>
+          <button class="btn btn-secondary btn-sm seg-action-btn" title="編輯文字與微調" onclick="window.app.openEditModal(${idx})">✏ 編輯</button>
+          ${idx < this.segments.length - 1 ? `<button class="btn btn-secondary btn-sm seg-action-btn" title="與下一句合併" onclick="window.app.mergeWithNext(${idx})">🔗 合併</button>` : ''}
         </div>
       `;
 
@@ -1214,7 +1255,7 @@ class EchoTrainerApp {
     });
   }
 
-  showToast(msg) {
+  showToast(msg, duration = 2800) {
     const toast = document.createElement('div');
     toast.className = 'toast';
     toast.innerText = msg;
@@ -1223,7 +1264,7 @@ class EchoTrainerApp {
       toast.style.opacity = '0';
       toast.style.transition = 'opacity 0.3s';
       setTimeout(() => toast.remove(), 300);
-    }, 2800);
+    }, duration);
   }
 }
 

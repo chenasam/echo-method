@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/style.css?v=6">
+  <link rel="stylesheet" href="css/style.css?v=8">
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
@@ -45,22 +45,23 @@
     <input type="file" id="audioFileInput" accept="audio/mpeg, audio/mp3, audio/wav, audio/x-wav, audio/mp4, audio/x-m4a, audio/aac, audio/x-aac, audio/ogg, audio/flac, .mp3, .wav, .m4a, .aac, .ogg, .flac, .mp4, .caf" style="display: none;">
     <input type="file" id="jsonFileInput" accept=".json, application/json, text/plain" style="display: none;">
 
-    <!-- Audio File Control Bar -->
-    <section class="glass-card">
+    <!-- Audio File Control Bar & Waveform Section (極簡流暢設計) -->
+    <section class="glass-card audio-control-card">
       <div class="file-bar">
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <label for="audioFileInput" id="btnSelectAudio" class="btn btn-primary" style="cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin: 0;">
+        <div class="file-bar-btns">
+          <label for="audioFileInput" id="btnSelectAudio" class="btn btn-primary btn-audio-action" style="cursor: pointer; margin: 0;">
             📂 選擇日語 MP3 音檔
           </label>
-          <button id="btnLoadDemo" class="btn btn-secondary" title="直接載入內建示範音檔與字卡快速體驗">
+          <button id="btnLoadDemo" class="btn btn-secondary btn-audio-action" title="直接載入內建示範音檔與字卡快速體驗">
             🎧 載入展示範例 (Demo)
           </button>
         </div>
         <div class="file-info">
-          <span class="file-badge">
+          <span class="file-badge file-name-badge" title="音檔名稱">
+            <span class="file-badge-icon">🎵</span>
             <span id="audioFileName">尚未載入音檔</span>
           </span>
-          <span class="file-badge" style="color: var(--text-muted);">
+          <span class="file-badge file-duration-badge" title="音檔長度">
             時長: <strong id="audioDuration" style="color: var(--text-primary); margin-left: 4px;">--:--</strong>
           </span>
         </div>
@@ -69,26 +70,40 @@
       <!-- Waveform Canvas Section -->
       <div class="waveform-section">
         <div class="waveform-header">
-          <span>📊 互動音波走勢與段落切點（點擊波形可定位跳轉）</span>
-          <span id="waveformStats" style="color: var(--text-muted);">Web Audio API 高精準取樣</span>
+          <div class="waveform-title-group">
+            <span class="waveform-main-title">📊 互動音波走勢與段落切點</span>
+            <span class="waveform-sub-hint">（點擊可定位段落）</span>
+          </div>
+          <!-- 斷句參數可折疊開關（微型膠囊） -->
+          <button id="btnToggleWaveformControls" class="btn-toggle-controls" type="button" title="點擊展開或收起斷句靈敏度滑桿">
+            <span class="toggle-icon">🎛️</span>
+            <span class="toggle-label">斷句微調</span>
+            <span id="waveformControlsSummary" class="toggle-summary">0.015 · 0.55s</span>
+            <span id="toggleControlsArrow" class="toggle-arrow">▾</span>
+          </button>
         </div>
+
         <div class="waveform-canvas-box">
           <canvas id="waveformCanvas"></canvas>
         </div>
-        <div class="waveform-controls">
-          <div class="slider-group" title="靜音能量閾值：若背景噪音多可稍微調高">
-            <span>靜音閾值:</span>
-            <input type="range" id="thresholdSlider" min="0.005" max="0.045" step="0.005" value="0.015">
-            <span id="thresholdValue">0.015</span>
+
+        <!-- Collapsible Waveform Controls (極簡預設收合) -->
+        <div id="waveformControls" class="waveform-controls collapsed">
+          <div class="waveform-controls-inner">
+            <div class="slider-group" title="靜音能量閾值：若背景噪音多可稍微調高">
+              <span class="slider-label">靜音閾值:</span>
+              <input type="range" id="thresholdSlider" min="0.005" max="0.045" step="0.005" value="0.015">
+              <span id="thresholdValue" class="slider-val">0.015</span>
+            </div>
+            <div class="slider-group" title="最小停頓秒數：換氣停頓大於此數即判定斷句">
+              <span class="slider-label">換氣長度:</span>
+              <input type="range" id="minSilenceSlider" min="0.3" max="1.2" step="0.05" value="0.55">
+              <span id="minSilenceValue" class="slider-val">0.55s</span>
+            </div>
+            <button id="btnRedetect" class="btn btn-secondary btn-sm btn-redetect" title="依照最新閾值與換氣長度重新偵測分段">
+              🔄 重新斷句
+            </button>
           </div>
-          <div class="slider-group" title="最小停頓秒數：換氣停頓大於此數即判定斷句">
-            <span>換氣長度:</span>
-            <input type="range" id="minSilenceSlider" min="0.3" max="1.2" step="0.05" value="0.55">
-            <span id="minSilenceValue">0.55s</span>
-          </div>
-          <button id="btnRedetect" class="btn btn-ghost btn-sm" style="margin-left: auto;">
-            🔄 重新斷句
-          </button>
         </div>
       </div>
     </section>
@@ -409,11 +424,11 @@
   <div id="toastContainer" class="toast-container"></div>
 
   <!-- Application Logic Modules -->
-  <script src="js/furigana-parser.js?v=6"></script>
-  <script src="js/audio-engine.js?v=6"></script>
-  <script src="js/waveform-canvas.js?v=6"></script>
-  <script src="js/storage.js?v=6"></script>
-  <script src="js/app.js?v=6"></script>
+  <script src="js/furigana-parser.js?v=8"></script>
+  <script src="js/audio-engine.js?v=8"></script>
+  <script src="js/waveform-canvas.js?v=8"></script>
+  <script src="js/storage.js?v=8"></script>
+  <script src="js/app.js?v=8"></script>
 
   <script>
     // Register Service Worker for PWA offline support

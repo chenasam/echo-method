@@ -1,4 +1,4 @@
-const CACHE_NAME = 'echo-method-v6';
+const CACHE_NAME = 'echo-method-v8';
 const ASSETS_TO_CACHE = [
   './index.html',
   './css/style.css',
