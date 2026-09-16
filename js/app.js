@@ -17,6 +17,7 @@ class EchoTrainerApp {
     this.autoAdvance = true; // Auto-flow vs Self-paced
     this.echoWaitDuration = 2.0;
     this.mimicTimeMode = '1.8'; // Mimic duration setting: '1.4' | '1.8' | '2.5' | 'manual'
+    this.replayMode = 'autoCompare'; // Replay mode setting: 'autoCompare' | 'autoSelf' | 'manual'
 
     // State machine: 'IDLE' | 'LISTEN' | 'ECHO' | 'MIMIC' | 'REVEAL'
     this.state = 'IDLE';
@@ -269,21 +270,52 @@ class EchoTrainerApp {
             this.updateDrawerSummary();
             const desc = val === 'manual' ? '手動結束模式（說完請按 Space 鍵或按鈕）' : `${val}x 倍率`;
             this.showToast(`已切換開口時長：${desc}`);
+          } else if (prefType === 'replayMode') {
+            this.replayMode = val;
+            this.updateDrawerSummary();
+            let desc = '⚡ 自動連續對比 (原音 ➔ 己音)';
+            if (val === 'autoSelf') desc = '🎙️ 自動播己音 (我的錄音)';
+            if (val === 'manual') desc = '✋ 手動點選回放';
+            this.showToast(`已切換回放模式：${desc}`);
           }
+          this.saveCurrentState();
         };
       });
     });
 
-    // Auto Flow Cruise Toggle
+    // Auto Advance Next Segment Toggle (自動播放下一句)
     if (this.dom.autoFlowToggle) {
       this.dom.autoFlowToggle.onchange = (e) => {
         this.autoAdvance = e.target.checked;
         this.updateDrawerSummary();
-        this.showToast(this.autoAdvance ? '已啟用「自動心流巡航」' : '已切換為「自主步調學習」');
+        this.saveCurrentState();
+        this.showToast(this.autoAdvance ? '已開啟「自動播放下一句」' : '已切換為「手動播放下一句」');
       };
     }
 
     this.updateDrawerSummary();
+  }
+
+  syncPillButtonsFromState() {
+    document.querySelectorAll('.pill-group').forEach(group => {
+      const pref = group.dataset.pref;
+      const buttons = group.querySelectorAll('.pill-btn');
+      let targetVal = null;
+      if (pref === 'repeat') targetVal = String(this.maxLoop);
+      if (pref === 'speed') targetVal = String(this.audioEngine.playbackRate);
+      if (pref === 'echoWait') targetVal = String(this.echoWaitDuration);
+      if (pref === 'mimicTime') targetVal = this.mimicTimeMode;
+      if (pref === 'replayMode') targetVal = this.replayMode;
+
+      if (targetVal) {
+        buttons.forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.val === targetVal);
+        });
+      }
+    });
+    if (this.dom.autoFlowToggle) {
+      this.dom.autoFlowToggle.checked = this.autoAdvance;
+    }
   }
 
   updateDrawerSummary() {
@@ -291,14 +323,27 @@ class EchoTrainerApp {
     const pillSpeed = document.getElementById('pillSummarySpeed');
     const pillEcho = document.getElementById('pillSummaryEcho');
     const pillMimic = document.getElementById('pillSummaryMimic');
+    const pillReplay = document.getElementById('pillSummaryReplay');
     const pillFlow = document.getElementById('pillSummaryFlow');
 
     if (pillRepeat) pillRepeat.innerText = `${this.maxLoop}次`;
     if (pillSpeed) pillSpeed.innerText = `${this.audioEngine.playbackRate}x`;
     if (pillEcho) pillEcho.innerText = `留白${this.echoWaitDuration}s`;
     if (pillMimic) pillMimic.innerText = this.mimicTimeMode === 'manual' ? '手動' : `摹${this.mimicTimeMode}x`;
+    if (pillReplay) {
+      if (this.replayMode === 'autoCompare') {
+        pillReplay.innerText = '自動對比';
+        pillReplay.className = 'mini-pill pill-replay-on';
+      } else if (this.replayMode === 'autoSelf') {
+        pillReplay.innerText = '自動己音';
+        pillReplay.className = 'mini-pill pill-replay-on';
+      } else {
+        pillReplay.innerText = '手動回放';
+        pillReplay.className = 'mini-pill';
+      }
+    }
     if (pillFlow) {
-      pillFlow.innerText = this.autoAdvance ? '巡航ON' : '自主步調';
+      pillFlow.innerText = this.autoAdvance ? '自動換句' : '手動換句';
       pillFlow.className = `mini-pill ${this.autoAdvance ? 'pill-flow-on' : 'pill-flow-off'}`;
     }
   }
@@ -367,6 +412,16 @@ class EchoTrainerApp {
       const savedProject = StorageManager.loadProject(file.name);
       if (savedProject && savedProject.segments && savedProject.segments.length > 0) {
         this.segments = savedProject.segments;
+        if (savedProject.settings) {
+          if (savedProject.settings.maxLoop) this.maxLoop = savedProject.settings.maxLoop;
+          if (savedProject.settings.playbackRate) this.audioEngine.playbackRate = savedProject.settings.playbackRate;
+          if (savedProject.settings.echoWaitDuration) this.echoWaitDuration = savedProject.settings.echoWaitDuration;
+          if (savedProject.settings.mimicTimeMode) this.mimicTimeMode = savedProject.settings.mimicTimeMode;
+          if (savedProject.settings.replayMode) this.replayMode = savedProject.settings.replayMode;
+          if (typeof savedProject.settings.autoAdvance === 'boolean') this.autoAdvance = savedProject.settings.autoAdvance;
+          this.syncPillButtonsFromState();
+          this.updateDrawerSummary();
+        }
         this.showToast('已從本機暫存載入先前練習紀錄！');
       } else {
         // Run auto silence detection
@@ -555,6 +610,8 @@ class EchoTrainerApp {
     this.dom.compareActions.style.display = 'none';
     this.dom.micMeterContainer.style.display = 'none';
     this.dom.btnFinishMimicEarly.style.display = 'none';
+    this.dom.btnCompareAll.innerHTML = '⚡ 連續對比 (原音 ➔ 己音)';
+    this.dom.btnPlaySelf.innerText = '🎙 播放己音 (我的錄音)';
 
     const seg = this.segments[this.currentIdx];
     const duration = (seg.end - seg.start) / this.audioEngine.playbackRate;
@@ -666,12 +723,12 @@ class EchoTrainerApp {
     }, intervalMs);
   }
 
-  endMimicPhaseEarly() {
+  async endMimicPhaseEarly() {
     if (this.state !== 'MIMIC') return;
     this.clearTimers();
-    this.audioEngine.stopRecording();
     this.dom.micMeterContainer.style.display = 'none';
     this.dom.btnFinishMimicEarly.style.display = 'none';
+    await this.audioEngine.stopRecording();
     this.runStep4And5Reveal();
   }
 
@@ -688,7 +745,9 @@ class EchoTrainerApp {
     this.setPhaseHero(
       'REVEAL',
       'STEP 4 & 5：答案揭曉與雙音對比',
-      '檢視振假名與文字，點選下方按鈕比對自己的發音與母語者的語調差異'
+      this.replayMode === 'manual'
+        ? '檢視振假名與文字，點選下方按鈕比對自己的發音與母語者的語調差異'
+        : '檢視振假名與文字，系統正自動為您回放比對發音與母語者的語調差異'
     );
 
     // Reveal text
@@ -701,13 +760,44 @@ class EchoTrainerApp {
     // Highlight comparison node
     setTimeout(() => this.updateStepIndicators(5), 600);
 
-    // If Auto-Flow mode is active, wait and advance
-    if (this.autoAdvance) {
-      const waitTime = Math.max(4500, (seg.end - seg.start) * 1000 + 3000);
+    // Helper for scheduling next loop / segment
+    const scheduleAutoAdvance = (delayMs = 2000) => {
+      if (!this.autoAdvance) return;
+      this.clearTimers();
       this.timerId = setTimeout(() => {
         if (this.state !== 'REVEAL') return;
         this.advanceLoopOrNext();
-      }, waitTime);
+      }, delayMs);
+    };
+
+    // Execute configured replay mode
+    if (this.replayMode === 'autoCompare') {
+      // Auto sequential comparison: Original -> Pause 350ms -> User Voice
+      this.timerId = setTimeout(() => {
+        if (this.state !== 'REVEAL') return;
+        this.playSequentialCompare(() => {
+          scheduleAutoAdvance(2000);
+        });
+      }, 350);
+    } else if (this.replayMode === 'autoSelf') {
+      // Auto play user's voice
+      this.timerId = setTimeout(() => {
+        if (this.state !== 'REVEAL') return;
+        this.dom.btnPlaySelf.innerText = '🎙 播放己音中...';
+        this.audioEngine.playSelfVoice(() => {
+          this.dom.btnPlaySelf.innerText = '🎙 播放己音 (我的錄音)';
+          scheduleAutoAdvance(2000);
+        });
+      }, 350);
+    } else {
+      // Manual mode: wait for user action or default cruise advance
+      if (this.autoAdvance) {
+        const waitTime = Math.max(4500, (seg.end - seg.start) * 1000 + 3000);
+        this.timerId = setTimeout(() => {
+          if (this.state !== 'REVEAL') return;
+          this.advanceLoopOrNext();
+        }, waitTime);
+      }
     }
   }
 
@@ -782,7 +872,7 @@ class EchoTrainerApp {
     this.audioEngine.playSegment(seg.start, seg.end, this.audioEngine.playbackRate);
   }
 
-  playSequentialCompare() {
+  playSequentialCompare(onComplete = null) {
     const seg = this.segments[this.currentIdx];
     this.dom.btnCompareAll.innerText = '正在連續對比中...';
     this.audioEngine.playCompareSequence(
@@ -796,6 +886,7 @@ class EchoTrainerApp {
       },
       () => {
         this.dom.btnCompareAll.innerHTML = '⚡ 連續對比 (原音 ➔ 己音)';
+        if (onComplete) onComplete();
       }
     );
   }
@@ -1117,6 +1208,8 @@ class EchoTrainerApp {
       maxLoop: this.maxLoop,
       playbackRate: this.audioEngine.playbackRate,
       echoWaitDuration: this.echoWaitDuration,
+      mimicTimeMode: this.mimicTimeMode,
+      replayMode: this.replayMode,
       autoAdvance: this.autoAdvance
     });
   }

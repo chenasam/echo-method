@@ -24,6 +24,7 @@ class AudioEngine {
     // HTML5 Audio element for background/mobile compatibility
     this.nativeAudio = new Audio();
     this.selfAudio = new Audio();
+    this.selfAudioUnlocked = false;
 
     // Silence detection default settings
     this.settings = {
@@ -45,6 +46,13 @@ class AudioEngine {
     if (this.audioCtx.state === 'suspended') {
       await this.audioCtx.resume();
     }
+    // Warm up selfAudio to unlock iOS Safari autoplay restrictions
+    try {
+      if (!this.selfAudioUnlocked) {
+        this.selfAudio.load();
+        this.selfAudioUnlocked = true;
+      }
+    } catch (e) {}
     return this.audioCtx;
   }
 
@@ -384,29 +392,46 @@ class AudioEngine {
   }
 
   /**
-   * Stop recording
+   * Stop recording - returns Promise resolving when userVoiceBlob & userVoiceUrl are ready
    */
   stopRecording() {
-    if (this.meterAnimationId) {
-      cancelAnimationFrame(this.meterAnimationId);
-      this.meterAnimationId = null;
-    }
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      this.mediaRecorder.stop();
-    }
+    return new Promise((resolve) => {
+      if (this.meterAnimationId) {
+        cancelAnimationFrame(this.meterAnimationId);
+        this.meterAnimationId = null;
+      }
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        const existingOnStop = this.mediaRecorder.onstop;
+        this.mediaRecorder.onstop = (e) => {
+          if (existingOnStop) {
+            try { existingOnStop(e); } catch (err) { console.error(err); }
+          }
+          resolve(this.userVoiceUrl);
+        };
+        this.mediaRecorder.stop();
+      } else {
+        resolve(this.userVoiceUrl);
+      }
+    });
   }
 
   /**
    * Play user's recorded voice
    */
   playSelfVoice(onEnded = null) {
-    if (!this.userVoiceUrl) return;
+    if (!this.userVoiceUrl) {
+      if (onEnded) onEnded();
+      return;
+    }
     this.stopPlayback();
     this.selfAudio.currentTime = 0;
     this.selfAudio.onended = () => {
       if (onEnded) onEnded();
     };
-    this.selfAudio.play().catch(e => console.warn('Self audio playback error', e));
+    this.selfAudio.play().catch(e => {
+      console.warn('Self audio playback error or iOS gesture policy', e);
+      if (onEnded) onEnded();
+    });
   }
 
   /**

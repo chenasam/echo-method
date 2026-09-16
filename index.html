@@ -106,7 +106,8 @@
             <span class="mini-pill" id="pillSummarySpeed">1.0x</span>
             <span class="mini-pill" id="pillSummaryEcho">留白2.0s</span>
             <span class="mini-pill" id="pillSummaryMimic">摹1.8x</span>
-            <span class="mini-pill pill-flow-on" id="pillSummaryFlow">巡航ON</span>
+            <span class="mini-pill pill-replay-on" id="pillSummaryReplay">自動對比</span>
+            <span class="mini-pill pill-flow-on" id="pillSummaryFlow">自動換句</span>
           </div>
         </div>
         <div class="drawer-header-right">
@@ -178,21 +179,35 @@
             </div>
           </div>
 
-          <!-- 5. 自動心流巡航切換 -->
-          <div class="setting-drawer-tile setting-tile-row">
-            <div class="tile-header" style="margin-bottom: 0;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="tile-icon">🚀</span>
-                <span class="tile-title">自動心流巡航</span>
-              </div>
-              <span class="tile-hint" style="display: block; margin-top: 2px;">
-                開啟時比對完自動前進下一句；關閉時為自主步調（點按鈕才前進）
-              </span>
+          <!-- 5. 摹完回放模式 -->
+          <div class="setting-drawer-tile">
+            <div class="tile-header">
+              <span class="tile-icon">🎧</span>
+              <span class="tile-title">摹完回放模式</span>
+              <span class="tile-hint">開口模仿完畢後的音訊比對方式</span>
             </div>
-            <label class="toggle-switch">
-              <input type="checkbox" id="autoFlowToggle" checked>
-              <span class="toggle-slider"></span>
-            </label>
+            <div class="pill-group pill-group-replay" data-pref="replayMode">
+              <button type="button" class="pill-btn pill-btn-primary active" data-val="autoCompare">⚡ 自動連續對比 (推薦) ★</button>
+              <button type="button" class="pill-btn" data-val="autoSelf">🎙️ 自動播己音</button>
+              <button type="button" class="pill-btn" data-val="manual">✋ 手動點選</button>
+            </div>
+          </div>
+
+          <!-- 6. 自動播放下一句切換（告別偏位，標題與開關同一列，說明獨立置底） -->
+          <div class="setting-drawer-tile setting-tile-toggle">
+            <div class="tile-toggle-row">
+              <div class="tile-title-group">
+                <span class="tile-icon">⏭️</span>
+                <span class="tile-title">自動播放下一句</span>
+              </div>
+              <label class="toggle-switch" title="切換是否比對完自動播放下一句">
+                <input type="checkbox" id="autoFlowToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="tile-desc-hint">
+              開啟時比對完自動播放下一句；若關閉則停住，由您手動按按鈕切換
+            </div>
           </div>
 
           <!-- 底部收起觸發按鈕 -->

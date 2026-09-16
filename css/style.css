@@ -608,6 +608,12 @@ body {
   border-color: rgba(148, 163, 184, 0.2);
 }
 
+.mini-pill.pill-replay-on {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
 .drawer-header-right {
   display: flex;
   align-items: center;
@@ -704,6 +710,21 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.pill-group-replay {
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 8px;
+}
+
+.pill-group-replay .pill-btn {
+  min-height: 42px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .pill-btn {
   padding: 9px 4px;
   border: none;
@@ -748,11 +769,39 @@ body {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* Tile Toggle Row (徹底修復手機端自動換句開關偏位與誤觸問題) */
+.setting-tile-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tile-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tile-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tile-desc-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+  padding-left: 2px;
+}
+
 .toggle-switch {
   position: relative;
   display: inline-block;
-  width: 40px;
-  height: 22px;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .toggle-switch input {
@@ -766,28 +815,32 @@ body {
   cursor: pointer;
   top: 0; left: 0; right: 0; bottom: 0;
   background-color: #334155;
-  transition: 0.2s;
-  border-radius: 22px;
+  transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .toggle-slider:before {
   position: absolute;
   content: "";
-  height: 16px;
-  width: 16px;
+  height: 20px;
+  width: 20px;
   left: 3px;
   bottom: 3px;
   background-color: white;
-  transition: 0.2s;
+  transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 input:checked + .toggle-slider {
-  background-color: var(--primary);
+  background: linear-gradient(135deg, var(--primary), #e11d48);
+  border-color: rgba(244, 63, 94, 0.4);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
 }
 
 input:checked + .toggle-slider:before {
-  transform: translateX(18px);
+  transform: translateX(20px);
 }
 
 /* Segment List */
@@ -1230,6 +1283,25 @@ input:checked + .toggle-slider:before {
     gap: 6px;
   }
 
+  .pill-group-replay {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .pill-group-replay .pill-btn[data-val="autoCompare"] {
+    grid-column: 1 / -1;
+    min-height: 48px;
+    font-size: 14.5px;
+    font-weight: 700;
+  }
+
+  .pill-group-replay .pill-btn[data-val="autoSelf"],
+  .pill-group-replay .pill-btn[data-val="manual"] {
+    min-height: 44px;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
   .pill-btn {
     padding: 10px 4px;
     font-size: 12px;
@@ -1382,13 +1454,27 @@ input:checked + .toggle-slider:before {
   }
 
   .mini-pill {
-    padding: 1px 5px;
-    font-size: 9px;
+    padding: 2px 6px;
+    font-size: 10px;
   }
 
   .pill-btn {
-    font-size: 11px;
-    padding: 8px 2px;
+    font-size: 12px;
+    padding: 9px 3px;
+  }
+
+  /* 專門確保回放模式按鈕字體夠大、高度好按 */
+  .pill-group-replay .pill-btn[data-val="autoCompare"] {
+    font-size: 14px !important;
+    min-height: 46px !important;
+    padding: 10px 6px !important;
+  }
+
+  .pill-group-replay .pill-btn[data-val="autoSelf"],
+  .pill-group-replay .pill-btn[data-val="manual"] {
+    font-size: 13px !important;
+    min-height: 44px !important;
+    padding: 8px 4px !important;
   }
 
   .file-badge {
