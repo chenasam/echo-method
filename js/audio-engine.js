@@ -15,6 +15,8 @@ class AudioEngine {
     this.recordingMimeType = '';
     this.userVoiceBlob = null;
     this.userVoiceUrl = null;
+    this.userVoiceBuffer = null;
+    this.currentSelfSourceNode = null;
     this.micStream = null;
     this.micAnalyser = null;
     this.meterAnimationId = null;
@@ -22,6 +24,7 @@ class AudioEngine {
     // Playback state
     this.isPlaying = false;
     this.playbackRate = 1.0;
+    this.micGainMode = '2.0'; // '1.0' | '1.5' | '2.0' (default) | 'auto'
 
     // HTML5 Audio element for background/mobile compatibility
     this.nativeAudio = new Audio();
@@ -392,6 +395,13 @@ class AudioEngine {
       } catch (e) {}
       this.currentSourceNode = null;
     }
+    if (this.currentSelfSourceNode) {
+      try {
+        this.currentSelfSourceNode.onended = null;
+        this.currentSelfSourceNode.stop();
+      } catch (e) {}
+      this.currentSelfSourceNode = null;
+    }
     try {
       this.nativeAudio.pause();
     } catch (e) {}
@@ -431,13 +441,12 @@ class AudioEngine {
   /**
    * Start recording user voice
    */
-  /**
-   * Start recording user voice
-   */
   startRecording(onMeterUpdate = null) {
     if (!this.micStream) return false;
 
     this.recordedChunks = [];
+    this.userVoiceBuffer = null;
+
     let mimeType = 'audio/webm;codecs=opus';
     if (!MediaRecorder.isTypeSupported(mimeType)) {
       if (MediaRecorder.isTypeSupported('audio/webm')) {
@@ -500,6 +509,22 @@ class AudioEngine {
   }
 
   /**
+   * Decode recorded user voice Blob to AudioBuffer for Web Audio API gain processing
+   */
+  async decodeUserVoiceBlob() {
+    this.userVoiceBuffer = null;
+    if (!this.userVoiceBlob || !this.audioCtx) return null;
+    try {
+      const arrayBuffer = await this.readFileAsArrayBuffer(this.userVoiceBlob);
+      this.userVoiceBuffer = await this.decodeAudioDataCompat(arrayBuffer);
+      return this.userVoiceBuffer;
+    } catch (err) {
+      console.warn('Could not decode user voice Blob to AudioBuffer, will fallback to HTML5 Audio:', err);
+      return null;
+    }
+  }
+
+  /**
    * Stop recording - returns Promise resolving when userVoiceBlob & userVoiceUrl are ready
    */
   stopRecording() {
@@ -510,13 +535,18 @@ class AudioEngine {
       }
       if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
         const existingOnStop = this.mediaRecorder.onstop;
-        this.mediaRecorder.onstop = (e) => {
+        this.mediaRecorder.onstop = async (e) => {
           if (existingOnStop) {
             try { existingOnStop(e); } catch (err) { console.error(err); }
           }
+          await this.decodeUserVoiceBlob();
           resolve(this.userVoiceUrl);
         };
-        this.mediaRecorder.stop();
+        try {
+          this.mediaRecorder.stop();
+        } catch (e) {
+          resolve(this.userVoiceUrl);
+        }
       } else {
         resolve(this.userVoiceUrl);
       }
@@ -524,16 +554,89 @@ class AudioEngine {
   }
 
   /**
-   * Play user's recorded voice
+   * Play user's recorded voice with Web Audio API Gain Boost & Limiter (Fallback to HTML5 Audio)
    */
   playSelfVoice(onEnded = null) {
-    if (!this.userVoiceUrl) {
+    if (!this.userVoiceUrl && !this.userVoiceBuffer) {
       if (onEnded) onEnded();
       return;
     }
     this.stopPlayback();
     this.isPlaying = true;
 
+    // 1. Primary Engine: Web Audio API (Boosted gain + transparent compressor/limiter)
+    if (this.audioCtx && this.userVoiceBuffer) {
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+
+      try {
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = this.userVoiceBuffer;
+
+        // Calculate gain multiplier based on micGainMode
+        let gainVal = 2.0; // Default: 2.0x boost
+        if (this.micGainMode === 'auto') {
+          // Scan peak amplitude of the user recording
+          let peak = 0.05;
+          for (let ch = 0; ch < this.userVoiceBuffer.numberOfChannels; ch++) {
+            const data = this.userVoiceBuffer.getChannelData(ch);
+            const step = Math.max(1, Math.floor(data.length / 5000));
+            for (let i = 0; i < data.length; i += step) {
+              const val = Math.abs(data[i]);
+              if (val > peak) peak = val;
+            }
+          }
+          // Target peak around 0.88 with safe 1.2x ~ 3.5x bounds
+          gainVal = Math.min(3.5, Math.max(1.2, 0.88 / peak));
+        } else {
+          const parsed = parseFloat(this.micGainMode);
+          if (!isNaN(parsed) && parsed > 0) {
+            gainVal = parsed;
+          }
+        }
+
+        const gainNode = this.audioCtx.createGain();
+        gainNode.gain.value = gainVal;
+
+        // Broadcast-quality transparent limiter/compressor to eliminate clipping
+        const compressor = this.audioCtx.createDynamicsCompressor();
+        compressor.threshold.value = -3.0; // dB
+        compressor.knee.value = 10.0;
+        compressor.ratio.value = 12.0;
+        compressor.attack.value = 0.003;
+        compressor.release.value = 0.15;
+
+        source.connect(gainNode);
+        gainNode.connect(compressor);
+        compressor.connect(this.audioCtx.destination);
+
+        this.currentSelfSourceNode = source;
+
+        let endedCalled = false;
+        const finish = () => {
+          if (endedCalled) return;
+          endedCalled = true;
+          this.isPlaying = false;
+          this.currentSelfSourceNode = null;
+          if (onEnded) onEnded();
+        };
+
+        source.onended = () => {
+          if (this.isPlaying && !endedCalled) {
+            finish();
+          }
+        };
+
+        source.start(0);
+        return;
+      } catch (err) {
+        console.warn('Web Audio playback of user voice failed, falling back to HTML5 Audio:', err);
+        this.currentSelfSourceNode = null;
+      }
+    }
+
+    // 2. Fallback Engine: HTML5 selfAudio
     let finished = false;
     let safetyTimer = null;
 

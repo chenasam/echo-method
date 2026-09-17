@@ -18,6 +18,7 @@ class EchoTrainerApp {
     this.echoWaitDuration = 2.0;
     this.mimicTimeMode = '1.8'; // Mimic duration setting: '1.4' | '1.8' | '2.5' | 'manual'
     this.replayMode = 'autoCompare'; // Replay mode setting: 'autoCompare' | 'autoSelf' | 'manual'
+    this.micGainMode = '2.0'; // Mic gain boost: '1.0' | '1.5' | '2.0' (default) | 'auto'
 
     // State machine: 'IDLE' | 'LISTEN' | 'ECHO' | 'MIMIC' | 'REVEAL'
     this.state = 'IDLE';
@@ -58,7 +59,8 @@ class EchoTrainerApp {
     this.dom.micMeterContainer = document.getElementById('micMeterContainer');
     this.dom.micMeterBar = document.getElementById('micMeterBar');
 
-    // Reveal & Compare
+    // Reveal & Compare & Training Dashboard
+    this.dom.trainingDashboardCard = document.getElementById('trainingDashboardCard');
     this.dom.revealContainer = document.getElementById('revealContainer');
     this.dom.revealJp = document.getElementById('revealJp');
     this.dom.revealZh = document.getElementById('revealZh');
@@ -67,10 +69,13 @@ class EchoTrainerApp {
     this.dom.btnPlaySelf = document.getElementById('btnPlaySelf');
     this.dom.btnCompareAll = document.getElementById('btnCompareAll');
     this.dom.btnFinishMimicEarly = document.getElementById('btnFinishMimicEarly');
+    this.dom.btnRetryMimicEarly = document.getElementById('btnRetryMimicEarly');
+    this.dom.mimicActionGroup = document.getElementById('mimicActionGroup');
 
     // Main training controls
     this.dom.btnStartTraining = document.getElementById('btnStartTraining');
     this.dom.btnPauseTraining = document.getElementById('btnPauseTraining');
+    this.dom.btnAbortTraining = document.getElementById('btnAbortTraining');
     this.dom.btnPrevSeg = document.getElementById('btnPrevSeg');
     this.dom.btnNextSeg = document.getElementById('btnNextSeg');
     this.dom.btnRepeatSeg = document.getElementById('btnRepeatSeg');
@@ -114,6 +119,7 @@ class EchoTrainerApp {
     this.dom.mobileMainActionBtn = document.getElementById('mobileMainActionBtn');
     this.dom.mobileBtnPrev = document.getElementById('mobileBtnPrev');
     this.dom.mobileBtnRepeat = document.getElementById('mobileBtnRepeat');
+    this.dom.mobileBtnAbort = document.getElementById('mobileBtnAbort');
     this.dom.mobileBtnNext = document.getElementById('mobileBtnNext');
 
     // Toast
@@ -156,10 +162,18 @@ class EchoTrainerApp {
     // Main buttons
     this.dom.btnStartTraining.onclick = () => this.startTraining();
     this.dom.btnPauseTraining.onclick = () => this.pauseTraining();
+    if (this.dom.btnAbortTraining) {
+      this.dom.btnAbortTraining.onclick = () => this.abortTraining();
+    }
     this.dom.btnPrevSeg.onclick = () => this.prevSegment();
     this.dom.btnNextSeg.onclick = () => this.nextSegment();
     this.dom.btnRepeatSeg.onclick = () => this.repeatCurrent();
-    this.dom.btnFinishMimicEarly.onclick = () => this.endMimicPhaseEarly();
+    if (this.dom.btnFinishMimicEarly) {
+      this.dom.btnFinishMimicEarly.onclick = () => this.endMimicPhaseEarly();
+    }
+    if (this.dom.btnRetryMimicEarly) {
+      this.dom.btnRetryMimicEarly.onclick = () => this.repeatCurrent();
+    }
 
     // Mobile Bottom Bar buttons
     if (this.dom.mobileMainActionBtn) {
@@ -170,6 +184,9 @@ class EchoTrainerApp {
     }
     if (this.dom.mobileBtnRepeat) {
       this.dom.mobileBtnRepeat.onclick = () => this.repeatCurrent();
+    }
+    if (this.dom.mobileBtnAbort) {
+      this.dom.mobileBtnAbort.onclick = () => this.abortTraining();
     }
     if (this.dom.mobileBtnNext) {
       this.dom.mobileBtnNext.onclick = () => this.nextSegment();
@@ -316,6 +333,12 @@ class EchoTrainerApp {
             if (val === 'autoSelf') desc = '🎙️ 自動播己音 (我的錄音)';
             if (val === 'manual') desc = '✋ 手動點選回放';
             this.showToast(`已切換回放模式：${desc}`);
+          } else if (prefType === 'micGain') {
+            this.micGainMode = val;
+            this.audioEngine.micGainMode = val;
+            this.updateDrawerSummary();
+            const desc = val === 'auto' ? '智慧音量自動平衡 ★' : `${val}x 增益`;
+            this.showToast(`已設定錄音回放增益：${desc}`);
           }
           this.saveCurrentState();
         };
@@ -345,6 +368,7 @@ class EchoTrainerApp {
       if (pref === 'echoWait') targetVal = String(this.echoWaitDuration);
       if (pref === 'mimicTime') targetVal = this.mimicTimeMode;
       if (pref === 'replayMode') targetVal = this.replayMode;
+      if (pref === 'micGain') targetVal = this.micGainMode;
 
       if (targetVal) {
         buttons.forEach(btn => {
@@ -363,6 +387,7 @@ class EchoTrainerApp {
     const pillEcho = document.getElementById('pillSummaryEcho');
     const pillMimic = document.getElementById('pillSummaryMimic');
     const pillReplay = document.getElementById('pillSummaryReplay');
+    const pillMic = document.getElementById('pillSummaryMic');
     const pillFlow = document.getElementById('pillSummaryFlow');
 
     if (pillRepeat) pillRepeat.innerText = `${this.maxLoop}次`;
@@ -380,6 +405,10 @@ class EchoTrainerApp {
         pillReplay.innerText = '手動回放';
         pillReplay.className = 'mini-pill';
       }
+    }
+    if (pillMic) {
+      pillMic.innerText = this.micGainMode === 'auto' ? '己音平衡' : `己音${this.micGainMode}x`;
+      pillMic.className = `mini-pill ${this.micGainMode === '1.0' ? '' : 'pill-mic-on'}`;
     }
     if (pillFlow) {
       pillFlow.innerText = this.autoAdvance ? '自動換句' : '手動換句';
@@ -409,6 +438,12 @@ class EchoTrainerApp {
         } else {
           this.pauseTraining();
         }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this.abortTraining();
+      } else if (e.key === 'Backspace' && this.state !== 'IDLE') {
+        e.preventDefault();
+        this.repeatCurrent();
       } else if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
         this.repeatCurrent();
@@ -457,6 +492,10 @@ class EchoTrainerApp {
           if (savedProject.settings.echoWaitDuration) this.echoWaitDuration = savedProject.settings.echoWaitDuration;
           if (savedProject.settings.mimicTimeMode) this.mimicTimeMode = savedProject.settings.mimicTimeMode;
           if (savedProject.settings.replayMode) this.replayMode = savedProject.settings.replayMode;
+          if (savedProject.settings.micGainMode) {
+            this.micGainMode = savedProject.settings.micGainMode;
+            this.audioEngine.micGainMode = this.micGainMode;
+          }
           if (typeof savedProject.settings.autoAdvance === 'boolean') this.autoAdvance = savedProject.settings.autoAdvance;
           this.syncPillButtonsFromState();
           this.updateDrawerSummary();
@@ -604,8 +643,15 @@ class EchoTrainerApp {
       this.showToast('提示：未開啟麥克風權限，開口模仿將無法錄音對比。');
     }
 
+    // Smoothly scroll window viewport to Training Dashboard once so learner is in perfect position
+    if (this.dom.trainingDashboardCard) {
+      this.dom.trainingDashboardCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     this.dom.btnStartTraining.style.display = 'none';
     this.dom.btnPauseTraining.style.display = 'inline-flex';
+    if (this.dom.btnAbortTraining) this.dom.btnAbortTraining.style.display = 'inline-flex';
+    if (this.dom.mobileBtnAbort) this.dom.mobileBtnAbort.style.display = 'inline-flex';
 
     // If current segment is disabled, start from first enabled segment
     if (this.currentIdx >= this.segments.length || this.segments[this.currentIdx].enabled === false) {
@@ -622,11 +668,35 @@ class EchoTrainerApp {
     this.clearTimers();
     this.audioEngine.stopPlayback();
     this.audioEngine.stopRecording();
-    this.dom.micMeterContainer.style.display = 'none';
+    if (this.dom.micMeterContainer) this.dom.micMeterContainer.style.display = 'none';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'none';
 
     this.dom.btnStartTraining.style.display = 'inline-flex';
     this.dom.btnPauseTraining.style.display = 'none';
-    this.setPhaseHero('PAUSED', '訓練已暫停', '隨時點擊繼續或按 Space 鍵恢復訓練');
+    if (this.dom.btnAbortTraining) this.dom.btnAbortTraining.style.display = 'inline-flex';
+    if (this.dom.mobileBtnAbort) this.dom.mobileBtnAbort.style.display = 'inline-flex';
+    this.setPhaseHero('PAUSED', '訓練已暫停', '隨時點擊繼續或按 Space 鍵恢復訓練，或按 Esc / 結束按鈕終止');
+  }
+
+  abortTraining() {
+    this.state = 'IDLE';
+    this.clearTimers();
+    this.audioEngine.stopPlayback();
+    this.audioEngine.stopRecording();
+
+    if (this.dom.micMeterContainer) this.dom.micMeterContainer.style.display = 'none';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'none';
+    if (this.dom.revealContainer) this.dom.revealContainer.style.display = 'none';
+    if (this.dom.compareActions) this.dom.compareActions.style.display = 'none';
+
+    this.dom.btnStartTraining.style.display = 'inline-flex';
+    this.dom.btnPauseTraining.style.display = 'none';
+    if (this.dom.btnAbortTraining) this.dom.btnAbortTraining.style.display = 'none';
+    if (this.dom.mobileBtnAbort) this.dom.mobileBtnAbort.style.display = 'none';
+
+    this.updateStepIndicators(0);
+    this.setPhaseHero('READY', '訓練已結束', '隨時點擊「開始回音法訓練」或按空白鍵 Space 重新開始');
+    this.showToast('已結束訓練，返回就緒狀態');
   }
 
   clearTimers() {
@@ -651,7 +721,9 @@ class EchoTrainerApp {
     this.dom.revealContainer.style.display = 'none';
     this.dom.compareActions.style.display = 'none';
     this.dom.micMeterContainer.style.display = 'none';
-    this.dom.btnFinishMimicEarly.style.display = 'none';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'none';
+    if (this.dom.btnAbortTraining) this.dom.btnAbortTraining.style.display = 'inline-flex';
+    if (this.dom.mobileBtnAbort) this.dom.mobileBtnAbort.style.display = 'inline-flex';
     this.dom.btnCompareAll.innerHTML = '⚡ 連續對比 (原音 ➔ 己音)';
     this.dom.btnPlaySelf.innerText = '🎙 播放己音 (我的錄音)';
 
@@ -719,9 +791,9 @@ class EchoTrainerApp {
         : '依據剛才的大腦心像模仿發音（若提早說完可按 Space 提前揭曉）'
     );
 
-    // Show mic meter & early finish button
+    // Show mic meter & mimic action buttons (✓ 我說完了 & 🔄 沒說好重錄)
     this.dom.micMeterContainer.style.display = 'block';
-    this.dom.btnFinishMimicEarly.style.display = 'inline-flex';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'flex';
 
     this.audioEngine.startRecording((level) => {
       this.dom.micMeterBar.style.width = `${level}%`;
@@ -768,8 +840,8 @@ class EchoTrainerApp {
   async endMimicPhaseEarly() {
     if (this.state !== 'MIMIC') return;
     this.clearTimers();
-    this.dom.micMeterContainer.style.display = 'none';
-    this.dom.btnFinishMimicEarly.style.display = 'none';
+    if (this.dom.micMeterContainer) this.dom.micMeterContainer.style.display = 'none';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'none';
     await this.audioEngine.stopRecording();
     this.runStep4And5Reveal();
   }
@@ -860,6 +932,8 @@ class EchoTrainerApp {
         this.setPhaseHero('DONE', '🎉 已完成所有勾選段落訓練！', '太棒了！您所選取的訓練段落已全數練習完畢。');
         this.dom.btnStartTraining.style.display = 'inline-flex';
         this.dom.btnPauseTraining.style.display = 'none';
+        if (this.dom.btnAbortTraining) this.dom.btnAbortTraining.style.display = 'none';
+        if (this.dom.mobileBtnAbort) this.dom.mobileBtnAbort.style.display = 'none';
       }
     }
   }
@@ -869,6 +943,12 @@ class EchoTrainerApp {
       this.startTraining();
       return;
     }
+    this.clearTimers();
+    this.audioEngine.stopPlayback();
+    this.audioEngine.stopRecording();
+    if (this.dom.micMeterContainer) this.dom.micMeterContainer.style.display = 'none';
+    if (this.dom.mimicActionGroup) this.dom.mimicActionGroup.style.display = 'none';
+    this.showToast(`重練第 ${this.currentIdx + 1} 句`);
     this.runStep1Listen();
   }
 
@@ -988,6 +1068,10 @@ class EchoTrainerApp {
     const btn = this.dom.mobileMainActionBtn;
 
     btn.classList.remove('btn-mimic-active');
+
+    if (this.dom.mobileBtnAbort) {
+      this.dom.mobileBtnAbort.style.display = (this.state === 'IDLE') ? 'none' : 'inline-flex';
+    }
 
     if (this.state === 'IDLE') {
       btn.innerText = '▶ 開始回音法訓練';
@@ -1110,9 +1194,21 @@ class EchoTrainerApp {
   }
 
   scrollSegmentIntoView(idx) {
-    const items = this.dom.segmentItemsList.children;
-    if (items[idx]) {
-      items[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    const list = this.dom.segmentItemsList;
+    if (!list) return;
+    const items = list.children;
+    if (items && items[idx]) {
+      const target = items[idx];
+      const targetTop = target.offsetTop - list.offsetTop;
+      const targetBottom = targetTop + target.offsetHeight;
+      const listScrollTop = list.scrollTop;
+      const listHeight = list.clientHeight;
+
+      if (targetTop < listScrollTop) {
+        list.scrollTo({ top: Math.max(0, targetTop - 8), behavior: 'smooth' });
+      } else if (targetBottom > listScrollTop + listHeight) {
+        list.scrollTo({ top: targetBottom - listHeight + 8, behavior: 'smooth' });
+      }
     }
   }
 
@@ -1257,6 +1353,7 @@ class EchoTrainerApp {
       echoWaitDuration: this.echoWaitDuration,
       mimicTimeMode: this.mimicTimeMode,
       replayMode: this.replayMode,
+      micGainMode: this.micGainMode,
       autoAdvance: this.autoAdvance
     });
   }
