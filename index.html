@@ -45,7 +45,7 @@
     <input type="file" id="audioFileInput" accept="audio/mpeg, audio/mp3, audio/wav, audio/x-wav, audio/mp4, audio/x-m4a, audio/aac, audio/x-aac, audio/ogg, audio/flac, .mp3, .wav, .m4a, .aac, .ogg, .flac, .mp4, .caf" style="display: none;">
     <input type="file" id="jsonFileInput" accept=".json, application/json, text/plain" style="display: none;">
 
-    <!-- Audio File Control Bar & Waveform Section (極簡流暢設計) -->
+    <!-- Audio File Control Bar (極簡音檔選取與資訊列) -->
     <section class="glass-card audio-control-card">
       <div class="file-bar">
         <div class="file-bar-btns">
@@ -66,46 +66,6 @@
           </span>
         </div>
       </div>
-
-      <!-- Waveform Canvas Section -->
-      <div class="waveform-section">
-        <div class="waveform-header">
-          <div class="waveform-title-group">
-            <span class="waveform-main-title">📊 互動音波走勢與段落切點</span>
-            <span class="waveform-sub-hint">（點擊可定位段落）</span>
-          </div>
-          <!-- 斷句參數可折疊開關（微型膠囊） -->
-          <button id="btnToggleWaveformControls" class="btn-toggle-controls" type="button" title="點擊展開或收起斷句靈敏度滑桿">
-            <span class="toggle-icon">🎛️</span>
-            <span class="toggle-label">斷句微調</span>
-            <span id="waveformControlsSummary" class="toggle-summary">0.015 · 0.55s</span>
-            <span id="toggleControlsArrow" class="toggle-arrow">▾</span>
-          </button>
-        </div>
-
-        <div class="waveform-canvas-box">
-          <canvas id="waveformCanvas"></canvas>
-        </div>
-
-        <!-- Collapsible Waveform Controls (極簡預設收合) -->
-        <div id="waveformControls" class="waveform-controls collapsed">
-          <div class="waveform-controls-inner">
-            <div class="slider-group" title="靜音能量閾值：若背景噪音多可稍微調高">
-              <span class="slider-label">靜音閾值:</span>
-              <input type="range" id="thresholdSlider" min="0.005" max="0.045" step="0.005" value="0.015">
-              <span id="thresholdValue" class="slider-val">0.015</span>
-            </div>
-            <div class="slider-group" title="最小停頓秒數：換氣停頓大於此數即判定斷句">
-              <span class="slider-label">換氣長度:</span>
-              <input type="range" id="minSilenceSlider" min="0.3" max="1.2" step="0.05" value="0.55">
-              <span id="minSilenceValue" class="slider-val">0.55s</span>
-            </div>
-            <button id="btnRedetect" class="btn btn-secondary btn-sm btn-redetect" title="依照最新閾值與換氣長度重新偵測分段">
-              🔄 重新斷句
-            </button>
-          </div>
-        </div>
-      </div>
     </section>
 
     <!-- Collapsible Training Settings Drawer (可折疊抽屜式訓練偏好設定) -->
@@ -122,6 +82,7 @@
             <span class="mini-pill" id="pillSummaryEcho">留白2.0s</span>
             <span class="mini-pill" id="pillSummaryMimic">摹1.8x</span>
             <span class="mini-pill pill-replay-on" id="pillSummaryReplay">自動對比</span>
+            <span class="mini-pill pill-mic-on" id="pillSummaryMic">己音2.0x</span>
             <span class="mini-pill pill-flow-on" id="pillSummaryFlow">自動換句</span>
           </div>
         </div>
@@ -208,7 +169,22 @@
             </div>
           </div>
 
-          <!-- 6. 自動播放下一句切換（告別偏位，標題與開關同一列，說明獨立置底） -->
+          <!-- 6. 錄音回放增益 (Mic Boost) -->
+          <div class="setting-drawer-tile">
+            <div class="tile-header">
+              <span class="tile-icon">🔊</span>
+              <span class="tile-title">錄音回放增益 (Mic Boost)</span>
+              <span class="tile-hint">放大己音錄音，消除「只有一半大聲」落差</span>
+            </div>
+            <div class="pill-group" data-pref="micGain">
+              <button type="button" class="pill-btn" data-val="1.0">1.0x (原始)</button>
+              <button type="button" class="pill-btn" data-val="1.5">1.5x (加強)</button>
+              <button type="button" class="pill-btn active" data-val="2.0">2.0x (推薦) ★</button>
+              <button type="button" class="pill-btn" data-val="auto">智慧平衡 ★</button>
+            </div>
+          </div>
+
+          <!-- 7. 自動播放下一句切換（告別偏位，標題與開關同一列，說明獨立置底） -->
           <div class="setting-drawer-tile setting-tile-toggle">
             <div class="tile-toggle-row">
               <div class="tile-title-group">
@@ -234,8 +210,8 @@
       </div>
     </section>
 
-    <!-- Echo Method 5-Step Hero Dashboard -->
-    <section class="glass-card training-dashboard">
+    <!-- Echo Method 5-Step Hero Dashboard (核心訓練主舞台) -->
+    <section id="trainingDashboardCard" class="glass-card training-dashboard">
       <!-- 5-Step Indicator -->
       <div class="steps-indicator">
         <div class="step-node" id="step1">
@@ -278,10 +254,15 @@
           <div id="micMeterBar" class="mic-meter-bar"></div>
         </div>
 
-        <!-- Early finish button during mimic -->
-        <button id="btnFinishMimicEarly" class="btn btn-secondary btn-sm" style="display: none; margin-top: 10px;" title="說完可立即按 Space 或點擊此按鈕進入答案揭曉">
-          ✓ 我說完了（按空白鍵 Space 或點此完成）
-        </button>
+        <!-- Mimic Action Controls (開口模仿動作群：說完揭曉 / 沒說好重錄) -->
+        <div id="mimicActionGroup" class="mimic-action-group" style="display: none;">
+          <button id="btnFinishMimicEarly" class="btn btn-mimic-finish" title="說完可立即按 Space 或點擊此按鈕進入答案揭曉">
+            ✓ 我說完了（按空白鍵 Space 揭曉）
+          </button>
+          <button id="btnRetryMimicEarly" class="btn btn-mimic-retry" title="吃螺絲或想重新模仿？點此或按 R 鍵立即重來！">
+            🔄 沒說好，重錄此句 (R)
+          </button>
+        </div>
 
         <!-- Revealed Text during Step 4 -->
         <div id="revealContainer" class="reveal-container">
@@ -303,14 +284,54 @@
         </div>
       </div>
 
-      <!-- Training Controls Toolbar -->
+      <!-- Waveform Canvas Section (置於步驟正下方，播放時音波與光標一目了然) -->
+      <div class="waveform-section">
+        <div class="waveform-header">
+          <div class="waveform-title-group">
+            <span class="waveform-main-title">📊 正在播放之音軌走勢與段落切點</span>
+            <span class="waveform-sub-hint">（光標同步滑動，點擊可定位段落）</span>
+          </div>
+          <!-- 斷句參數可折疊開關（微型膠囊） -->
+          <button id="btnToggleWaveformControls" class="btn-toggle-controls" type="button" title="點擊展開或收起斷句靈敏度滑桿">
+            <span class="toggle-icon">🎛️</span>
+            <span class="toggle-label">斷句微調</span>
+            <span id="waveformControlsSummary" class="toggle-summary">0.015 · 0.55s</span>
+            <span id="toggleControlsArrow" class="toggle-arrow">▾</span>
+          </button>
+        </div>
+
+        <div class="waveform-canvas-box">
+          <canvas id="waveformCanvas"></canvas>
+        </div>
+
+        <!-- Collapsible Waveform Controls (極簡預設收合) -->
+        <div id="waveformControls" class="waveform-controls collapsed">
+          <div class="waveform-controls-inner">
+            <div class="slider-group" title="靜音能量閾值：若背景噪音多可稍微調高">
+              <span class="slider-label">靜音閾值:</span>
+              <input type="range" id="thresholdSlider" min="0.005" max="0.045" step="0.005" value="0.015">
+              <span id="thresholdValue" class="slider-val">0.015</span>
+            </div>
+            <div class="slider-group" title="最小停頓秒數：換氣停頓大於此數即判定斷句">
+              <span class="slider-label">換氣長度:</span>
+              <input type="range" id="minSilenceSlider" min="0.3" max="1.2" step="0.05" value="0.55">
+              <span id="minSilenceValue" class="slider-val">0.55s</span>
+            </div>
+            <button id="btnRedetect" class="btn btn-secondary btn-sm btn-redetect" title="依照最新閾值與換氣長度重新偵測分段">
+              🔄 重新斷句
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Training Controls Toolbar (底層控制列) -->
       <div class="training-toolbar">
         <div style="display: flex; gap: 8px;">
           <button id="btnPrevSeg" class="btn btn-secondary" title="上一句 (← 方向鍵左)">
             ⏮ 上一句
           </button>
-          <button id="btnRepeatSeg" class="btn btn-secondary" title="重練此句 (R鍵)">
-            🔁 重練此句
+          <button id="btnRepeatSeg" class="btn btn-secondary" title="重練此句 (R鍵或 Backspace)">
+            🔄 重練此句 (R)
           </button>
           <button id="btnNextSeg" class="btn btn-secondary" title="下一句 (→ 方向鍵右)">
             下一句 ⏭
@@ -321,12 +342,15 @@
           單句次數: <span id="loopDisplay" class="loop-badge">1 / 3</span>
         </div>
 
-        <div>
+        <div style="display: flex; gap: 8px;">
           <button id="btnStartTraining" class="btn btn-primary" disabled>
             ▶ 開始回音法訓練 (Space)
           </button>
-          <button id="btnPauseTraining" class="btn btn-secondary" style="display: none;">
-            ⏸ 暫停訓練 (Space)
+          <button id="btnPauseTraining" class="btn btn-secondary" style="display: none;" title="暫停當前訓練 (Space)">
+            ⏸ 暫停 (Space)
+          </button>
+          <button id="btnAbortTraining" class="btn btn-secondary btn-abort-training" style="display: none;" title="中止訓練並返回待命狀態 (Esc 鍵)">
+            ⏹ 結束訓練 (Esc)
           </button>
         </div>
       </div>
@@ -413,10 +437,11 @@
   <!-- Mobile Fixed Bottom Action Bar (手機單手大拇指操控列) -->
   <aside id="mobileBottomBar" class="mobile-bottom-bar">
     <button id="mobileBtnPrev" class="btn btn-secondary mobile-btn-icon" title="上一句">⏮</button>
-    <button id="mobileBtnRepeat" class="btn btn-secondary mobile-btn-icon" title="重練此句">🔁</button>
+    <button id="mobileBtnRepeat" class="btn btn-secondary mobile-btn-icon" title="重練此句 (R)">🔄</button>
     <button id="mobileMainActionBtn" class="btn btn-primary mobile-main-btn">
       ▶ 開始回音法訓練
     </button>
+    <button id="mobileBtnAbort" class="btn btn-secondary mobile-btn-icon" style="display: none;" title="結束訓練 (Esc)">⏹</button>
     <button id="mobileBtnNext" class="btn btn-secondary mobile-btn-icon" title="下一句">⏭</button>
   </aside>
 
